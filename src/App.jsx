@@ -22,7 +22,7 @@ export const DataProvider = ({ children }) => {
   const [customers, setCustomers] = useState([]);
   const [employees, setEmployees] = useState([]);
 
-  // --- Realtime Sync ---
+  // --- Realtime Sync with Firebase ---
   useEffect(() => {
     onValue(ref(db, 'orders'), (snapshot) => setOrders(snapshot.val() || []));
     onValue(ref(db, 'inventory'), (snapshot) => setInventory(snapshot.val() || []));
@@ -30,85 +30,44 @@ export const DataProvider = ({ children }) => {
     onValue(ref(db, 'employees'), (snapshot) => setEmployees(snapshot.val() || []));
   }, []);
 
-  // --- Bulk Actions (Crucial for Excel Imports) ---
+  // --- Bulk Actions for Excel (Saves to Firebase) ---
   const addMultipleInventoryItems = (newItems) => {
-    const itemsWithIds = newItems.map((item, index) => ({
-      ...item,
-      id: `item-${Date.now()}-${index}`
-    }));
-    const updated = [...itemsWithIds, ...inventory];
+    // Combine new items with existing ones and save to cloud
+    const updated = [...newItems, ...inventory];
     set(ref(db, 'inventory'), updated);
   };
 
   const addMultipleCustomers = (newCustomers) => {
-    const customersWithIds = newCustomers.map((c, index) => ({
-      ...c,
-      id: `c-${Date.now()}-${index}`
-    }));
-    const updated = [...customersWithIds, ...customers];
+    const updated = [...newCustomers, ...customers];
     set(ref(db, 'customers'), updated);
   };
 
-  // --- Single Item Actions ---
-  const addOrder = (order) => {
-    const updated = [order, ...orders];
-    set(ref(db, 'orders'), updated);
-  };
-  const updateOrder = (updated) => {
-    const newData = orders.map(o => o.id === updated.id ? updated : o);
-    set(ref(db, 'orders'), newData);
-  };
-  const deleteOrder = (id) => {
-    const updated = orders.filter(o => o.id !== id);
-    set(ref(db, 'orders'), updated);
-  };
+  // --- Standard Actions (Saving to Firebase) ---
+  const addOrder = (order) => set(ref(db, 'orders'), [order, ...orders]);
   
   const addInventoryItem = (item) => {
-    const updated = [{...item, id: `item-${Date.now()}`}, ...inventory];
-    set(ref(db, 'inventory'), updated);
-  };
-  const updateInventoryItem = (id, updated) => {
-    const newData = inventory.map(item => item.id === id ? { ...item, ...updated } : item);
-    set(ref(db, 'inventory'), newData);
-  };
-  const deleteInventoryItem = (id) => {
-    const updated = inventory.filter(i => i.id !== id);
-    set(ref(db, 'inventory'), updated);
+    const newItem = { ...item, id: `item-${Date.now()}` };
+    set(ref(db, 'inventory'), [newItem, ...inventory]);
   };
 
   const addCustomer = (customer) => {
-    const updated = [{ ...customer, id: `c-${Date.now()}` }, ...customers];
-    set(ref(db, 'customers'), updated);
-  };
-  const updateCustomer = (id, updated) => {
-    const newData = customers.map(c => c.id === id ? { ...c, ...updated } : c);
-    set(ref(db, 'customers'), newData);
-  };
-  const deleteCustomer = (id) => {
-    const updated = customers.filter(c => c.id !== id);
-    set(ref(db, 'customers'), updated);
+    const newCust = { ...customer, id: `c-${Date.now()}` };
+    set(ref(db, 'customers'), [newCust, ...customers]);
   };
 
-  const addEmployee = (emp) => {
-    const updated = [{ ...emp, id: `e-${Date.now()}` }, ...employees];
-    set(ref(db, 'employees'), updated);
-  };
-  const updateEmployee = (id, updated) => {
-    const newData = employees.map(e => e.id === id ? { ...e, ...updated } : e);
-    set(ref(db, 'employees'), newData);
-  };
-  const deleteEmployee = (id) => {
-    const updated = employees.filter(e => e.id !== id);
-    set(ref(db, 'employees'), updated);
+  // --- Delete/Update Actions ---
+  const deleteInventoryItem = (id) => set(ref(db, 'inventory'), inventory.filter(i => i.id !== id));
+  const deleteCustomer = (id) => set(ref(db, 'customers'), customers.filter(c => c.id !== id));
+  const updateInventoryItem = (id, updated) => {
+    const newList = inventory.map(i => i.id === id ? { ...i, ...updated } : i);
+    set(ref(db, 'inventory'), newList);
   };
 
   return (
     <DataContext.Provider value={{ 
       orders, inventory, customers, employees, 
-      addOrder, updateOrder, deleteOrder,
-      addInventoryItem, updateInventoryItem, deleteInventoryItem, addMultipleInventoryItems,
-      addCustomer, updateCustomer, deleteCustomer, addMultipleCustomers,
-      addEmployee, updateEmployee, deleteEmployee
+      addOrder, addInventoryItem, updateInventoryItem, deleteInventoryItem, addMultipleInventoryItems,
+      addCustomer, deleteCustomer, addMultipleCustomers
     }}>
       {children}
     </DataContext.Provider>
