@@ -1,11 +1,8 @@
-// Import the functions you need from the SDKs you need
+// 1. Added the missing import for getDatabase
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+import { getDatabase } from "firebase/database"; 
 
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyD8B4T4fveXpwe1RJ_zlxa0t7SuDky9rbM",
   authDomain: "pharmaflow-2f6b3.firebaseapp.com",
@@ -17,6 +14,8 @@ const firebaseConfig = {
   measurementId: "G-EKF9M6EEGG"
 };
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
+
+// 2. Added 'export' so App.jsx can use the database
+export const db = getDatabase(app);
