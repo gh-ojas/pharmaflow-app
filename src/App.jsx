@@ -10,47 +10,78 @@ import InventoryPage from './pages/Inventory';
 import CustomersPage from './pages/Customers';
 import EmployeesPage from './pages/Employees';
 
+// --- Firebase Imports ---
+import { db } from "./firebase-config";
+import { ref, onValue, set } from "firebase/database";
+
 const DataContext = createContext();
 
-// Helper to safely load data from LocalStorage
-const getLocal = (key, defaultValue) => {
-  try {
-    const saved = localStorage.getItem(key);
-    return saved ? JSON.parse(saved) : defaultValue;
-  } catch (e) {
-    console.error(`Error loading ${key} from storage`, e);
-    return defaultValue;
-  }
-};
-
 export const DataProvider = ({ children }) => {
-  const [orders, setOrders] = useState(() => getLocal('orders', []));
-  const [inventory, setInventory] = useState(() => getLocal('inventory', []));
-  const [customers, setCustomers] = useState(() => getLocal('customers', []));
-  const [employees, setEmployees] = useState(() => getLocal('employees', []));
+  const [orders, setOrders] = useState([]);
+  const [inventory, setInventory] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [employees, setEmployees] = useState([]);
 
+  // --- Realtime Sync (Replaces getLocal) ---
   useEffect(() => {
-    localStorage.setItem('orders', JSON.stringify(orders));
-    localStorage.setItem('inventory', JSON.stringify(inventory));
-    localStorage.setItem('customers', JSON.stringify(customers));
-    localStorage.setItem('employees', JSON.stringify(employees));
-  }, [orders, inventory, customers, employees]);
+    onValue(ref(db, 'orders'), (snapshot) => setOrders(snapshot.val() || []));
+    onValue(ref(db, 'inventory'), (snapshot) => setInventory(snapshot.val() || []));
+    onValue(ref(db, 'customers'), (snapshot) => setCustomers(snapshot.val() || []));
+    onValue(ref(db, 'employees'), (snapshot) => setEmployees(snapshot.val() || []));
+  }, []);
 
-  const addOrder = (order) => setOrders(prev => [order, ...prev]);
-  const updateOrder = (updated) => setOrders(prev => prev.map(o => o.id === updated.id ? updated : o));
-  const deleteOrder = (id) => setOrders(prev => prev.filter(o => o.id !== id));
+  // --- Actions (Updated to Save to Firebase) ---
+  const addOrder = (order) => {
+    const updated = [order, ...orders];
+    set(ref(db, 'orders'), updated);
+  };
+  const updateOrder = (updated) => {
+    const newData = orders.map(o => o.id === updated.id ? updated : o);
+    set(ref(db, 'orders'), newData);
+  };
+  const deleteOrder = (id) => {
+    const updated = orders.filter(o => o.id !== id);
+    set(ref(db, 'orders'), updated);
+  };
   
-  const addInventoryItem = (item) => setInventory(prev => [{...item, id: `item-${Date.now()}`}, ...prev]);
-  const updateInventoryItem = (id, updated) => setInventory(prev => prev.map(item => item.id === id ? { ...item, ...updated } : item));
-  const deleteInventoryItem = (id) => setInventory(prev => prev.filter(i => i.id !== id));
+  const addInventoryItem = (item) => {
+    const updated = [{...item, id: `item-${Date.now()}`}, ...inventory];
+    set(ref(db, 'inventory'), updated);
+  };
+  const updateInventoryItem = (id, updated) => {
+    const newData = inventory.map(item => item.id === id ? { ...item, ...updated } : item);
+    set(ref(db, 'inventory'), newData);
+  };
+  const deleteInventoryItem = (id) => {
+    const updated = inventory.filter(i => i.id !== id);
+    set(ref(db, 'inventory'), updated);
+  };
 
-  const addCustomer = (customer) => setCustomers(prev => [{ ...customer, id: `c-${Date.now()}` }, ...prev]);
-  const updateCustomer = (id, updated) => setCustomers(prev => prev.map(c => c.id === id ? { ...c, ...updated } : c));
-  const deleteCustomer = (id) => setCustomers(prev => prev.filter(c => c.id !== id));
+  const addCustomer = (customer) => {
+    const updated = [{ ...customer, id: `c-${Date.now()}` }, ...customers];
+    set(ref(db, 'customers'), updated);
+  };
+  const updateCustomer = (id, updated) => {
+    const newData = customers.map(c => c.id === id ? { ...c, ...updated } : c);
+    set(ref(db, 'customers'), newData);
+  };
+  const deleteCustomer = (id) => {
+    const updated = customers.filter(c => c.id !== id);
+    set(ref(db, 'customers'), updated);
+  };
 
-  const addEmployee = (emp) => setEmployees(prev => [{ ...emp, id: `e-${Date.now()}` }, ...prev]);
-  const updateEmployee = (id, updated) => setEmployees(prev => prev.map(e => e.id === id ? { ...e, ...updated } : e));
-  const deleteEmployee = (id) => setEmployees(prev => prev.filter(e => e.id !== id));
+  const addEmployee = (emp) => {
+    const updated = [{ ...emp, id: `e-${Date.now()}` }, ...employees];
+    set(ref(db, 'employees'), updated);
+  };
+  const updateEmployee = (id, updated) => {
+    const newData = employees.map(e => e.id === id ? { ...e, ...updated } : e);
+    set(ref(db, 'employees'), newData);
+  };
+  const deleteEmployee = (id) => {
+    const updated = employees.filter(e => e.id !== id);
+    set(ref(db, 'employees'), updated);
+  };
 
   return (
     <DataContext.Provider value={{ 
@@ -67,7 +98,6 @@ export const DataProvider = ({ children }) => {
 
 export const useData = () => useContext(DataContext);
 
-// Layout must receive darkMode props to show the toggle
 const Layout = ({ children, page, setPage, actions, darkMode, setDarkMode }) => (
   <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-main)' }}>
     <div className="max-w-xl mx-auto min-h-screen shadow-2xl flex flex-col" style={{ backgroundColor: 'var(--bg-card)' }}>
@@ -76,7 +106,6 @@ const Layout = ({ children, page, setPage, actions, darkMode, setDarkMode }) => 
         className="flex items-center justify-between border-b sticky top-0 z-30 px-4 h-[calc(4rem+var(--safe-area-top))] bg-inherit backdrop-blur-md"
       >
         <div className="flex items-center gap-3 overflow-hidden">
-          {/* Back button shown on every page except home */}
           {page !== 'home' && (
             <button 
               onClick={() => setPage('home')} 
@@ -85,24 +114,13 @@ const Layout = ({ children, page, setPage, actions, darkMode, setDarkMode }) => 
               <ArrowLeft className="h-6 w-6" style={{ color: 'var(--text-main)' }} />
             </button>
           )}
-
-          {/* Icon shown ONLY on the Dashboard (home) */}
           {page === 'home' && <Pill className="h-6 w-6 text-emerald-500 shrink-0" />}
-
-          {/* Capitalized Title */}
-          <h1 
-            className="text-lg font-bold truncate" 
-            style={{ color: 'var(--text-main)' }}
-          >
-            {page === 'home' 
-              ? 'PharmaFlow' 
-              : page.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
-            }
+          <h1 className="text-lg font-bold truncate" style={{ color: 'var(--text-main)' }}>
+            {page === 'home' ? 'PharmaFlow' : page.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
           </h1>
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Theme Mode Button: Always visible on every page */}
           <button 
             onClick={() => setDarkMode(!darkMode)}
             className="p-2 rounded-xl"
@@ -110,8 +128,6 @@ const Layout = ({ children, page, setPage, actions, darkMode, setDarkMode }) => 
           >
             {darkMode ? <Sun size={20} /> : <Moon size={20} />}
           </button>
-          
-          {/* Respective page buttons (Add Item, Import, etc.) remain untouched */}
           {actions}
         </div>
       </header>
@@ -125,32 +141,22 @@ function AppContent() {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [editingOrder, setEditingOrder] = useState(null);
   const [headerActions, setHeaderActions] = useState(null);
+
   useEffect(() => {
-  // 1. Function to handle the back button press
-  const handleBackButton = (event) => {
-    if (page !== 'home') {
-      // If not on home, prevent default "Back" and go to home
-      setPage('home');
-      // Push the state again to keep the "trap" active for the next back press
-      window.history.pushState(null, null, window.location.pathname);
-    }
-  };
+    const handleBackButton = () => {
+      if (page !== 'home') {
+        setPage('home');
+        window.history.pushState(null, null, window.location.pathname);
+      }
+    };
+    window.history.pushState(null, null, window.location.pathname);
+    window.addEventListener('popstate', handleBackButton);
+    return () => window.removeEventListener('popstate', handleBackButton);
+  }, [page]);
 
-  // 2. Push an initial dummy state to the history stack
-  window.history.pushState(null, null, window.location.pathname);
-
-  // 3. Listen for the 'popstate' event (triggered by hardware/browser back)
-  window.addEventListener('popstate', handleBackButton);
-
-  return () => {
-    window.removeEventListener('popstate', handleBackButton);
-  };
-}, [page]); // Re-run whenever the page changes
-
-  // DARK MODE LOGIC - Inside the component body
   const [darkMode, setDarkMode] = useState(() => {
     const saved = localStorage.getItem('theme');
-    return saved ? saved === 'dark' : true; // Default to dark mode
+    return saved ? saved === 'dark' : true;
   });
 
   useEffect(() => {
