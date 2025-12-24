@@ -85,7 +85,6 @@ export default function InventoryPage({ setHeaderActions }) {
 const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
@@ -95,32 +94,26 @@ const handleFileUpload = (e) => {
         const worksheet = workbook.Sheets[sheetName];
         const jsonData = XLSX.utils.sheet_to_json(worksheet);
         
-        // 1. Process all rows into a new array first
-        const itemsToAdd = jsonData
-          .map(row => {
-            const name = row.itemName || row['Item Name'] || row.item || row.Item;
-            if (!name) return null;
+        // Map all rows to a buffer array
+        const itemsBuffer = jsonData.map((row, index) => {
+          const name = row.itemName || row['Item Name'] || row.item || row.Item;
+          if (!name) return null;
+          return {
+            itemName: String(name).trim(),
+            company: String(row.company || row.Company || 'Generic').trim(),
+            unitType: row.unitType || row.Unit || 'Pieces',
+            quantity: parseInt(row.quantity || row.Stock || row.Qty) || 0,
+            ...row,
+            id: `item-${Date.now()}-${index}` // Ensure unique ID for each
+          };
+        }).filter(item => item !== null);
 
-            return {
-              itemName: String(name).trim(),
-              company: String(row.company || row.Company || 'Generic').trim(),
-              unitType: row.unitType || row.Unit || 'Pieces',
-              quantity: parseInt(row.quantity || row.Stock || row.Qty) || 0,
-              ...row // Carry over custom columns
-            };
-          })
-          .filter(item => item !== null); // Remove empty/invalid rows
-
-        // 2. Add each item
-        // Note: If only one item still appears, you must update App.jsx 
-        // to use a functional state update: setInventory(prev => [...prev, newItem])
-        itemsToAdd.forEach(item => {
-          addInventoryItem(item);
-        });
-
+        if (itemsBuffer.length > 0) {
+          // IMPORTANT: Requires the bulk update function in App.jsx
+          addMultipleInventoryItems(itemsBuffer); 
+        }
         setIsImporting(false);
       } catch (err) {
-        console.error(err);
         alert("Error reading file. Ensure it is a valid Excel/CSV.");
       }
     };
