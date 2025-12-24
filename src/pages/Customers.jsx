@@ -79,43 +79,43 @@ export default function CustomersPage({ setHeaderActions }) {
   }, [customers, searchTerm]);
 
 const handleFileUpload = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const data = new Uint8Array(event.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet);
-        
-        // Map all rows to a buffer array
-        const customersBuffer = jsonData.map((row, index) => {
-          const name = row.name || row['Customer Name'] || row.customer || row.Name;
-          const area = row.area || row.Location || row.Area || 'Unknown';
-          if (!name) return null;
-          return {
-            name: String(name).trim(),
-            area: String(area).trim(),
-            ...row,
-            id: `c-${Date.now()}-${index}` // Ensure unique ID for each
-          };
-        }).filter(c => c !== null);
+  const file = e.target.files[0];
+  if (!file) return;
 
-        if (customersBuffer.length > 0) {
-          // IMPORTANT: Requires the bulk update function in App.jsx
-          addMultipleCustomers(customersBuffer);
-        }
-        setIsImporting(false);
-      } catch (err) {
-        alert("Could not process file. Ensure it is a valid Excel or CSV.");
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    try {
+      const bstr = event.target.result;
+      const workbook = XLSX.read(bstr, { type: 'binary' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+      
+      const customersBuffer = jsonData.map((row, index) => {
+        const name = row.name || row['Customer Name'] || row.customer || row.Name;
+        const area = row.area || row.Location || row.Area || 'Unknown';
+        if (!name) return null;
+        return {
+          name: String(name).trim(),
+          area: String(area).trim(),
+          ...row,
+          id: `c-${Date.now()}-${index}`
+        };
+      }).filter(c => c !== null);
+
+      if (customersBuffer.length > 0) {
+        addMultipleCustomers(customersBuffer);
+        alert(`Successfully imported ${customersBuffer.length} customers!`);
       }
-    };
-    reader.readAsArrayBuffer(file);
-    e.target.value = ''; 
+      setIsImporting(false);
+    } catch (err) {
+      console.error(err);
+      alert("Error reading file. Ensure it is a valid Excel or CSV.");
+    }
   };
-
+  reader.readAsBinaryString(file); // Changed from readAsArrayBuffer
+  e.target.value = ''; 
+};
   return (
     <div className="space-y-4 pb-20">
       <div className="flex gap-2 relative" ref={settingsRef}>
@@ -285,4 +285,5 @@ const handleFileUpload = (e) => {
       )}
     </div>
   );
+
 }
