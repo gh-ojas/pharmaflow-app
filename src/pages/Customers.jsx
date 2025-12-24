@@ -81,12 +81,11 @@ export default function CustomersPage({ setHeaderActions }) {
 const handleFileUpload = (e) => {
   const file = e.target.files[0];
   if (!file) return;
-
   const reader = new FileReader();
   reader.onload = (event) => {
     try {
       const bstr = event.target.result;
-      const workbook = XLSX.read(bstr, { type: 'binary' });
+      const workbook = XLSX.read(bstr, { type: 'binary' }); // Use binary type
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
       const jsonData = XLSX.utils.sheet_to_json(worksheet);
@@ -105,15 +104,13 @@ const handleFileUpload = (e) => {
 
       if (customersBuffer.length > 0) {
         addMultipleCustomers(customersBuffer);
-        alert(`Successfully imported ${customersBuffer.length} customers!`);
       }
       setIsImporting(false);
     } catch (err) {
-      console.error(err);
-      alert("Error reading file. Ensure it is a valid Excel or CSV.");
+      alert("Could not process file. Ensure it is a valid Excel or CSV.");
     }
   };
-  reader.readAsBinaryString(file); // Changed from readAsArrayBuffer
+  reader.readAsBinaryString(file); // Use readAsBinaryString
   e.target.value = ''; 
 };
 

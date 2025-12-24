@@ -89,38 +89,33 @@ const handleFileUpload = (e) => {
   reader.onload = (event) => {
     try {
       const bstr = event.target.result;
-      const workbook = XLSX.read(bstr, { type: 'binary' });
-      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const workbook = XLSX.read(bstr, { type: 'binary' }); // Use binary type
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
       const jsonData = XLSX.utils.sheet_to_json(worksheet);
       
       const itemsBuffer = jsonData.map((row, index) => {
-        // Look specifically for "Item Name" as the mandatory field
-        const name = row['Item Name'] || row.itemName || row.item;
-        
-        // If "Item Name" is missing, skip this row
+        const name = row.itemName || row['Item Name'] || row.item || row.Item;
         if (!name) return null;
-
         return {
           itemName: String(name).trim(),
-          // Use values from file if they exist, otherwise use defaults
-          company: String(row.Company || row.company || 'Generic').trim(),
-          unitType: row.Unit || row.unitType || 'Pieces',
-          quantity: parseInt(row.Stock || row.quantity || 0),
-          ...row, // Keeps any extra columns you might have
+          company: String(row.company || row.Company || 'Generic').trim(),
+          unitType: row.unitType || row.Unit || 'Pieces',
+          quantity: parseInt(row.quantity || row.Stock || row.Qty) || 0,
+          ...row,
           id: `item-${Date.now()}-${index}`
         };
       }).filter(item => item !== null);
 
       if (itemsBuffer.length > 0) {
-        addMultipleInventoryItems(itemsBuffer);
-        alert(`Successfully imported ${itemsBuffer.length} items.`);
+        addMultipleInventoryItems(itemsBuffer); 
       }
       setIsImporting(false);
     } catch (err) {
-      alert("Error reading file. Ensure it is a valid Excel or CSV.");
+      alert("Error reading file. Ensure it is a valid Excel/CSV.");
     }
   };
-  reader.readAsBinaryString(file);
+  reader.readAsBinaryString(file); // Use readAsBinaryString
   e.target.value = ''; 
 };
 
