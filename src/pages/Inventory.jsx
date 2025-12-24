@@ -82,7 +82,7 @@ export default function InventoryPage({ setHeaderActions }) {
     );
   }, [inventory, searchTerm]);
 
-  const handleFileUpload = (e) => {
+const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
@@ -94,22 +94,24 @@ export default function InventoryPage({ setHeaderActions }) {
         const worksheet = workbook.Sheets[sheetName];
         const jsonData = XLSX.utils.sheet_to_json(worksheet);
         
-        jsonData.forEach(row => {
+        // Map all rows to a buffer array
+        const itemsBuffer = jsonData.map((row, index) => {
           const name = row.itemName || row['Item Name'] || row.item || row.Item;
-          const unit = row.unitType || row.Unit || 'Pieces';
-          const qty = row.quantity || row.Stock || row.Qty || 0;
-          const company = row.company || row.Company || 'Generic';
+          if (!name) return null;
+          return {
+            itemName: String(name).trim(),
+            company: String(row.company || row.Company || 'Generic').trim(),
+            unitType: row.unitType || row.Unit || 'Pieces',
+            quantity: parseInt(row.quantity || row.Stock || row.Qty) || 0,
+            ...row,
+            id: `item-${Date.now()}-${index}` // Ensure unique ID for each
+          };
+        }).filter(item => item !== null);
 
-          if (name) {
-            addInventoryItem({ 
-              itemName: String(name).trim(), 
-              company: String(company).trim(), 
-              unitType: unit, 
-              quantity: parseInt(qty) || 0,
-              ...row // Keep any extra custom columns from Excel
-            });
-          }
-        });
+        if (itemsBuffer.length > 0) {
+          // IMPORTANT: Requires the bulk update function in App.jsx
+          addMultipleInventoryItems(itemsBuffer); 
+        }
         setIsImporting(false);
       } catch (err) {
         alert("Error reading file. Ensure it is a valid Excel/CSV.");
