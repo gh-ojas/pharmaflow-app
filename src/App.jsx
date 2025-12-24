@@ -22,7 +22,7 @@ export const DataProvider = ({ children }) => {
   const [customers, setCustomers] = useState([]);
   const [employees, setEmployees] = useState([]);
 
-  // --- Realtime Sync (Replaces getLocal) ---
+  // --- Realtime Sync ---
   useEffect(() => {
     onValue(ref(db, 'orders'), (snapshot) => setOrders(snapshot.val() || []));
     onValue(ref(db, 'inventory'), (snapshot) => setInventory(snapshot.val() || []));
@@ -30,7 +30,26 @@ export const DataProvider = ({ children }) => {
     onValue(ref(db, 'employees'), (snapshot) => setEmployees(snapshot.val() || []));
   }, []);
 
-  // --- Actions (Updated to Save to Firebase) ---
+  // --- Bulk Actions (Crucial for Excel Imports) ---
+  const addMultipleInventoryItems = (newItems) => {
+    const itemsWithIds = newItems.map((item, index) => ({
+      ...item,
+      id: `item-${Date.now()}-${index}`
+    }));
+    const updated = [...itemsWithIds, ...inventory];
+    set(ref(db, 'inventory'), updated);
+  };
+
+  const addMultipleCustomers = (newCustomers) => {
+    const customersWithIds = newCustomers.map((c, index) => ({
+      ...c,
+      id: `c-${Date.now()}-${index}`
+    }));
+    const updated = [...customersWithIds, ...customers];
+    set(ref(db, 'customers'), updated);
+  };
+
+  // --- Single Item Actions ---
   const addOrder = (order) => {
     const updated = [order, ...orders];
     set(ref(db, 'orders'), updated);
@@ -87,8 +106,8 @@ export const DataProvider = ({ children }) => {
     <DataContext.Provider value={{ 
       orders, inventory, customers, employees, 
       addOrder, updateOrder, deleteOrder,
-      addInventoryItem, updateInventoryItem, deleteInventoryItem,
-      addCustomer, updateCustomer, deleteCustomer,
+      addInventoryItem, updateInventoryItem, deleteInventoryItem, addMultipleInventoryItems,
+      addCustomer, updateCustomer, deleteCustomer, addMultipleCustomers,
       addEmployee, updateEmployee, deleteEmployee
     }}>
       {children}
