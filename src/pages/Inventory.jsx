@@ -83,43 +83,45 @@ export default function InventoryPage({ setHeaderActions }) {
   }, [inventory, searchTerm]);
 
 const handleFileUpload = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const data = new Uint8Array(event.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet);
-        
-        // Map all rows to a buffer array
-        const itemsBuffer = jsonData.map((row, index) => {
-          const name = row.itemName || row['Item Name'] || row.item || row.Item;
-          if (!name) return null;
-          return {
-            itemName: String(name).trim(),
-            company: String(row.company || row.Company || 'Generic').trim(),
-            unitType: row.unitType || row.Unit || 'Pieces',
-            quantity: parseInt(row.quantity || row.Stock || row.Qty) || 0,
-            ...row,
-            id: `item-${Date.now()}-${index}` // Ensure unique ID for each
-          };
-        }).filter(item => item !== null);
+  const file = e.target.files[0];
+  if (!file) return;
 
-        if (itemsBuffer.length > 0) {
-          // IMPORTANT: Requires the bulk update function in App.jsx
-          addMultipleInventoryItems(itemsBuffer); 
-        }
-        setIsImporting(false);
-      } catch (err) {
-        alert("Error reading file. Ensure it is a valid Excel/CSV.");
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    try {
+      // Modern way: read as binary string for better compatibility
+      const bstr = event.target.result;
+      const workbook = XLSX.read(bstr, { type: 'binary' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+      
+      const itemsBuffer = jsonData.map((row, index) => {
+        const name = row.itemName || row['Item Name'] || row.item || row.Item;
+        if (!name) return null;
+        return {
+          itemName: String(name).trim(),
+          company: String(row.company || row.Company || 'Generic').trim(),
+          unitType: row.unitType || row.Unit || 'Pieces',
+          quantity: parseInt(row.quantity || row.Stock || row.Qty) || 0,
+          ...row,
+          id: `item-${Date.now()}-${index}`
+        };
+      }).filter(item => item !== null);
+
+      if (itemsBuffer.length > 0) {
+        addMultipleInventoryItems(itemsBuffer); 
+        alert(`Successfully imported ${itemsBuffer.length} items!`);
       }
-    };
-    reader.readAsArrayBuffer(file);
-    e.target.value = ''; 
+      setIsImporting(false);
+    } catch (err) {
+      console.error(err);
+      alert("Could not process file. Try saving it as a standard .xlsx or .csv file.");
+    }
   };
+  reader.readAsBinaryString(file); // Changed from readAsArrayBuffer
+  e.target.value = ''; 
+};
 
   return (
     <div className="space-y-4 pb-20">
@@ -294,4 +296,5 @@ const handleFileUpload = (e) => {
       )}
     </div>
   );
+
 }
