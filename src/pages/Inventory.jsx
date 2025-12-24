@@ -296,5 +296,4 @@ const handleFileUpload = (e) => {
       )}
     </div>
   );
-
 }

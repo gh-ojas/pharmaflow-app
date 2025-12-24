@@ -116,6 +116,7 @@ const handleFileUpload = (e) => {
   reader.readAsBinaryString(file); // Changed from readAsArrayBuffer
   e.target.value = ''; 
 };
+
   return (
     <div className="space-y-4 pb-20">
       <div className="flex gap-2 relative" ref={settingsRef}>
@@ -285,5 +286,4 @@ const handleFileUpload = (e) => {
       )}
     </div>
   );
-
 }
