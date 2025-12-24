@@ -22,7 +22,7 @@ const StyledSelect = ({ value, onChange, options, className = "" }) => (
 );
 
 export default function InventoryPage({ setHeaderActions }) {
-  const { inventory, deleteInventoryItem, addInventoryItem, updateInventoryItem } = useData();
+  const { inventory, deleteInventoryItem, addInventoryItem, updateInventoryItem, addMultipleInventoryItems } = useData();
   const [searchTerm, setSearchTerm] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -85,41 +85,42 @@ export default function InventoryPage({ setHeaderActions }) {
 const handleFileUpload = (e) => {
   const file = e.target.files[0];
   if (!file) return;
-
   const reader = new FileReader();
   reader.onload = (event) => {
     try {
-      // Modern way: read as binary string for better compatibility
       const bstr = event.target.result;
       const workbook = XLSX.read(bstr, { type: 'binary' });
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
       const jsonData = XLSX.utils.sheet_to_json(worksheet);
       
       const itemsBuffer = jsonData.map((row, index) => {
-        const name = row.itemName || row['Item Name'] || row.item || row.Item;
+        // Look specifically for "Item Name" as the mandatory field
+        const name = row['Item Name'] || row.itemName || row.item;
+        
+        // If "Item Name" is missing, skip this row
         if (!name) return null;
+
         return {
           itemName: String(name).trim(),
-          company: String(row.company || row.Company || 'Generic').trim(),
-          unitType: row.unitType || row.Unit || 'Pieces',
-          quantity: parseInt(row.quantity || row.Stock || row.Qty) || 0,
-          ...row,
+          // Use values from file if they exist, otherwise use defaults
+          company: String(row.Company || row.company || 'Generic').trim(),
+          unitType: row.Unit || row.unitType || 'Pieces',
+          quantity: parseInt(row.Stock || row.quantity || 0),
+          ...row, // Keeps any extra columns you might have
           id: `item-${Date.now()}-${index}`
         };
       }).filter(item => item !== null);
 
       if (itemsBuffer.length > 0) {
-        addMultipleInventoryItems(itemsBuffer); 
-        alert(`Successfully imported ${itemsBuffer.length} items!`);
+        addMultipleInventoryItems(itemsBuffer);
+        alert(`Successfully imported ${itemsBuffer.length} items.`);
       }
       setIsImporting(false);
     } catch (err) {
-      console.error(err);
-      alert("Could not process file. Try saving it as a standard .xlsx or .csv file.");
+      alert("Error reading file. Ensure it is a valid Excel or CSV.");
     }
   };
-  reader.readAsBinaryString(file); // Changed from readAsArrayBuffer
+  reader.readAsBinaryString(file);
   e.target.value = ''; 
 };
 

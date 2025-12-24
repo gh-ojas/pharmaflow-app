@@ -20,7 +20,7 @@ const StyledSelect = ({ value, onChange, options, className = "" }) => (
 );
 
 export default function CustomersPage({ setHeaderActions }) {
-  const { customers, deleteCustomer, addCustomer, updateCustomer } = useData();
+  const { customers, deleteCustomer, addCustomer, updateCustomer, addMultipleCustomers } = useData();
   const [searchTerm, setSearchTerm] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
