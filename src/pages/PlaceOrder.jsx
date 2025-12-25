@@ -22,7 +22,6 @@ const SearchableSelect = ({ options, value, onChange, placeholder, inputRef }) =
       <button 
         ref={inputRef} 
         type="button" 
-        // FIX 2: Search closes if clicked while already open
         onClick={() => setIsOpen(!isOpen)}
         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex justify-between items-center text-sm"
       >
@@ -52,7 +51,8 @@ const SearchableSelect = ({ options, value, onChange, placeholder, inputRef }) =
 };
 
 export default function PlaceOrderPage({ setPage, setHeaderActions }) {
-  const { inventory } = useData();
+  // --- FIXED: Hooks moved inside the component ---
+  const { inventory, requirementHistory = [], updateRequirementHistory } = useData();
   const itemRef = useRef(null);
   const qtyRef = useRef(null);
   
@@ -63,7 +63,6 @@ export default function PlaceOrderPage({ setPage, setHeaderActions }) {
 
   const [organization, setOrganization] = useState(localStorage.getItem('savedOrg') || '');
   const [orderItems, setOrderItems] = useState(() => JSON.parse(localStorage.getItem('orderDraft')) || []);
-  const [history, setHistory] = useState(() => JSON.parse(localStorage.getItem('orderHistory')) || []);
   const [currentOrderId, setCurrentOrderId] = useState(() => localStorage.getItem('currentOrderId') || null);
   const [showHistory, setShowHistory] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
@@ -74,7 +73,7 @@ export default function PlaceOrderPage({ setPage, setHeaderActions }) {
 
   const generateNewId = () => {
     const todayPrefix = getTodayStr();
-    const todaysOrders = history.filter(h => h?.orderId?.startsWith(todayPrefix));
+    const todaysOrders = requirementHistory.filter(h => h?.orderId?.startsWith(todayPrefix));
     return `${todayPrefix}-${todaysOrders.length + 1}`;
   };
 
@@ -84,33 +83,40 @@ export default function PlaceOrderPage({ setPage, setHeaderActions }) {
     }
   }, [currentOrderId]);
 
+  const updateQty = (index, newQty) => {
+  const updated = [...orderItems];
+  updated[index].quantity = newQty;
+  setOrderItems(updated);
+};
+  // --- FIXED: Combined LocalStorage and Firebase sync ---
   useEffect(() => {
     localStorage.setItem('orderDraft', JSON.stringify(orderItems));
-    localStorage.setItem('orderHistory', JSON.stringify(history));
     localStorage.setItem('currentOrderId', currentOrderId);
     localStorage.setItem('savedOrg', organization);
 
     if (organization && orderItems.length > 0) {
-      setHistory(prev => {
-        const existingIdx = prev.findIndex(h => h.orderId === currentOrderId);
-        const newEntry = { 
-          orderId: currentOrderId, 
-          date: currentDateLabel, 
-          org: organization, 
-          items: [...orderItems], 
-          pinned: prev[existingIdx]?.pinned || false 
-        };
-        if (existingIdx > -1) {
-          const newHist = [...prev];
-          newHist[existingIdx] = newEntry;
-          return newHist;
-        }
-        return [newEntry, ...prev].slice(0, 30);
-      });
+      const existingIdx = requirementHistory.findIndex(h => h.orderId === currentOrderId);
+      const newEntry = { 
+        orderId: currentOrderId, 
+        date: currentDateLabel, 
+        org: organization, 
+        items: [...orderItems], 
+        pinned: requirementHistory[existingIdx]?.pinned || false 
+      };
+
+      let newHist = [...requirementHistory];
+      if (existingIdx > -1) {
+        newHist[existingIdx] = newEntry;
+      } else {
+        newHist = [newEntry, ...newHist].slice(0, 50);
+      }
+      
+      // Update Firebase
+      if (updateRequirementHistory) updateRequirementHistory(newHist);
     }
   }, [orderItems, organization, currentOrderId]);
 
-  const sortedHistory = useMemo(() => [...history].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)), [history]);
+  const sortedHistory = useMemo(() => [...requirementHistory].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)), [requirementHistory]);
   const availableCompanies = useMemo(() => [...new Set(orderItems.map(item => item.company))].filter(Boolean), [orderItems]);
   const filteredOrderItems = useMemo(() => selectedCompanies.length === 0 ? orderItems : orderItems.filter(item => selectedCompanies.includes(item.company)), [orderItems, selectedCompanies]);
 
@@ -121,7 +127,6 @@ export default function PlaceOrderPage({ setPage, setHeaderActions }) {
     localStorage.removeItem('orderDraft');
   };
 
-  // FIX: Improved Export Logic for Mobile
   const handleExport = () => {
     if (!organization || filteredOrderItems.length === 0) return alert("Add items first");
     
@@ -169,20 +174,15 @@ export default function PlaceOrderPage({ setPage, setHeaderActions }) {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Order");
 
-    // MOBILE FIX: Use Blob instead of direct writeFile for better mobile compatibility
     const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
     const blob = new Blob([wbout], { type: 'application/octet-stream' });
     const fileName = `${currentOrderId}_${organization}.xlsx`;
 
-    if (navigator.msSaveBlob) {
-      navigator.msSaveBlob(blob, fileName);
-    } else {
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = fileName;
-      link.click();
-      URL.revokeObjectURL(link.href);
-    }
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = fileName;
+    link.click();
+    URL.revokeObjectURL(link.href);
   };
 
   const handleShareText = async () => {
@@ -208,11 +208,10 @@ export default function PlaceOrderPage({ setPage, setHeaderActions }) {
       </div>
     );
     return () => setHeaderActions(null);
-  }, [setHeaderActions, history]);
+  }, [setHeaderActions, requirementHistory]);
 
   return (
     <div className="space-y-4 pb-24 relative">
-      {/* Sidebar History (Omitted for brevity, kept same as original) */}
       {showHistory && (
         <div className="fixed inset-0 z-50 flex justify-end">
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowHistory(false)} />
@@ -228,10 +227,10 @@ export default function PlaceOrderPage({ setPage, setHeaderActions }) {
                   <div className="flex justify-between">
                     <span className="text-[10px] font-black text-emerald-700 bg-emerald-100 px-1.5 rounded">{h.orderId}</span>
                     <div className="flex gap-1">
-                      <button onClick={(e) => { e.stopPropagation(); setHistory(prev => prev.map(item => item.orderId === h.orderId ? { ...item, pinned: !item.pinned } : item)); }}>
+                      <button onClick={(e) => { e.stopPropagation(); updateRequirementHistory(requirementHistory.map(item => item.orderId === h.orderId ? { ...item, pinned: !item.pinned } : item)); }}>
                         {h.pinned ? <PinOff className="h-3 w-3 text-blue-600" /> : <Pin className="h-3 w-3 text-slate-400" />}
                       </button>
-                      <button onClick={(e) => { e.stopPropagation(); if(confirm("Delete?")) setHistory(prev => prev.filter(item => item.orderId !== h.orderId)); }}><Trash2 className="h-3 w-3 text-slate-400 hover:text-rose-500" /></button>
+                      <button onClick={(e) => { e.stopPropagation(); if(confirm("Delete?")) updateRequirementHistory(requirementHistory.filter(item => item.orderId !== h.orderId)); }}><Trash2 className="h-3 w-3 text-slate-400 hover:text-rose-500" /></button>
                     </div>
                   </div>
                   <div className="font-bold text-slate-800 text-xs truncate mt-1">{h.org}</div>
@@ -243,7 +242,6 @@ export default function PlaceOrderPage({ setPage, setHeaderActions }) {
         </div>
       )}
 
-      {/* Inputs Section */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
         <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Active Order: {currentOrderId}</div>
         <input type="text" placeholder="Organization Name" className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg outline-none text-sm font-bold"
@@ -258,7 +256,6 @@ export default function PlaceOrderPage({ setPage, setHeaderActions }) {
         </form>
       </div>
 
-      {/* Preview Section */}
       <div className="bg-amber-50/50 border border-amber-100 rounded-xl overflow-hidden shadow-sm">
         <div className="bg-amber-100/80 p-3">
           <div className="text-center mb-2">
@@ -281,7 +278,7 @@ export default function PlaceOrderPage({ setPage, setHeaderActions }) {
           {filteredOrderItems.map((item, idx) => (
             <div key={idx} className="flex justify-between p-3.5 border-b items-center">
               <div><div className="font-bold text-sm text-slate-800">{item.itemName}</div><div className="text-[9px] text-slate-400 font-black uppercase tracking-tight">{item.company}</div></div>
-              <div className="flex items-center gap-4"><span className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full font-black text-xs border border-blue-100">{item.quantity}</span>
+              <div className="flex items-center gap-4"><input type="text" value={item.quantity} onChange={(e) => updateQty(idx, e.target.value)} className="w-14 p-1 text-center font-black text-xs border border-blue-200 rounded-md bg-blue-50 text-blue-700 outline-none focus:border-blue-400"/>
               <button onClick={() => setOrderItems(prev => prev.filter((_, i) => i !== idx))} className="p-1"><Trash2 className="h-4 w-4 text-slate-300 hover:text-rose-500" /></button></div>
             </div>
           ))}

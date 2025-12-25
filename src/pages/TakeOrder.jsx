@@ -239,35 +239,36 @@ export default function TakeOrderPage({ setPage, setHeaderActions, editingOrder,
     setActiveStep('item'); // Jump back to item for next entry
   };
 
-  const processOrder = (showReview = false) => {
-    if (!customerName || orderItems.length === 0) return;
-    
-    const orderData = {
-      id: editingOrder?.id || `ord-${Date.now()}`,
-      customerName,
-      items: orderItems,
-      createdAt: editingOrder?.createdAt || new Date().toISOString(),
-      taken: false,
-      delivered: false,
-    };
+const processOrder = async (shouldReview) => {
+  if (orderItems.length === 0) return alert("Add items first");
 
-    if (editingOrder) {
-      updateOrder(orderData);
-      setPage('home');
-    } else {
-      addOrder(orderData);
-      if (showReview) {
-        onReview(orderData);
-      } else {
-        setCustomerName('');
-        setOrderItems([]);
-        setSelectedItem(null);
-        setQuantity('');
-        setUnitType('');
-        setActiveStep('customer');
-      }
-    }
+  const finalOrder = {
+    id: editingOrder ? editingOrder.id : Date.now(),
+    customerName: customerName,
+    items: orderItems,
+    status: editingOrder ? editingOrder.status : "Pending",
+    createdAt: editingOrder ? editingOrder.createdAt : new Date().toISOString(),
+    deadline: editingOrder?.deadline || null
   };
+
+  try {
+    // 1. Await the database update based on whether we are editing or adding
+    if (editingOrder) {
+      await updateOrder(finalOrder);
+    } else {
+      await addOrder(finalOrder);
+    }
+
+    // 2. Trigger the UI response
+    if (shouldReview) {
+      onReview(finalOrder); // This must trigger setSelectedOrder in App.jsx
+    } else {
+      setPage('home');
+    }
+  } catch (error) {
+    alert("Error saving to cloud. Please check connection.");
+  }
+};
 
   const inventoryOptions = useMemo(() => {
     const customerOrders = orders.filter(o => o.customerName === customerName);
