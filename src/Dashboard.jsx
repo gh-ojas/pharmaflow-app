@@ -50,31 +50,61 @@ export default function Dashboard({ setPage, onClick, onEdit }) {
     return 'text-emerald-500';
   };
 
-  const NavCard = ({ title, desc, icon, color, href, fullWidth }) => (
-    <div 
-      onClick={() => setPage(href)}
-      style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)' }}
-      className={`${fullWidth ? 'col-span-2' : 'col-span-1'} p-5 rounded-2xl border-2 cursor-pointer transition-all hover:shadow-md active:scale-95 group`}
-    >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="p-3 rounded-xl shadow-sm" style={{ backgroundColor: 'var(--bg-main)' }}>
-            {React.cloneElement(icon, { className: `h-7 w-7 ${color}` })}
-          </div>
-          <div>
-            <h3 className="font-bold text-lg" style={{ color: 'var(--text-main)' }}>{title}</h3>
-            <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{desc}</p>
-          </div>
+const NavCard = ({ title, desc, icon, color, href, fullWidth }) => (
+  <div 
+    onClick={() => setPage(href)}
+    style={{ 
+      backgroundColor: 'var(--bg-card)', 
+      borderColor: 'var(--border)',
+      // Fluid padding: Scales between 12px (mobile) and 24px (desktop)
+      padding: 'clamp(0.75rem, 2.5vw, 1.5rem)' 
+    }}
+    className={`${fullWidth ? 'col-span-2' : 'col-span-1'} rounded-2xl border-2 cursor-pointer transition-all hover:shadow-md active:scale-95 group`}
+  >
+    <div className="flex items-center justify-between">
+      <div className="flex items-center" style={{ gap: 'clamp(0.5rem, 2vw, 1.25rem)' }}>
+        
+        {/* CONSTANT ICON BOX: Fixed at 48px */}
+        <div 
+          className="w-12 h-12 flex items-center justify-center shrink-0 rounded-xl shadow-sm bg-[var(--bg-main)]"
+        >
+          {React.cloneElement(icon, { 
+            className: `h-7 w-7 ${color}` // Icon size remains constant
+          })}
         </div>
-        <ArrowRight className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-all" style={{ color: 'var(--text-muted)' }} />
+
+        <div className="min-w-0">
+          <h3 
+            className="font-bold leading-tight truncate" 
+            style={{ 
+              color: 'var(--text-main)',
+              // Fluid Font: Scales from 14px to 18px
+              fontSize: 'clamp(0.875rem, 2.2vw, 1.125rem)' 
+            }}
+          >
+            {title}
+          </h3>
+          <p 
+            className="font-medium truncate" 
+            style={{ 
+              color: 'var(--text-muted)',
+              // Fluid Font: Scales from 10px to 13px
+              fontSize: 'clamp(0.625rem, 1.5vw, 0.8125rem)' 
+            }}
+          >
+            {desc}
+          </p>
+        </div>
       </div>
+      <ArrowRight className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-all" style={{ color: 'var(--text-muted)' }} />
     </div>
-  );
+  </div>
+);
 
   return (
     <div className="space-y-6 pb-32">
       {/* Navigation Grid */}
-      <div className="grid grid-cols-2 gap-1">
+      <div className="grid grid-cols-2 gap-3">
         {/* Place Order takes full width (2 columns) */}
         <NavCard 
           title="Place Order" 
@@ -128,7 +158,7 @@ export default function Dashboard({ setPage, onClick, onEdit }) {
               <th className="p-4 w-[55%]">Client</th>
               <th className="p-4 text-center w-[12%]">Taken</th>
               <th className="p-4 text-center w-[12%]">Delivered</th>
-              <th className="p-4 text-center w-[21%]">Edit</th>
+              <th className="p-4 text-center w-[21%]"></th>
             </tr>
           </thead>
           <tbody className="divide-y" style={{ borderColor: 'var(--border)' }}>

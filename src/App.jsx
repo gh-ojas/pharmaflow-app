@@ -17,22 +17,32 @@ import { ref, onValue, set } from "firebase/database";
 const DataContext = createContext();
 
 export const DataProvider = ({ children }) => {
-  const [orders, setOrders] = useState([]);
-  const [inventory, setInventory] = useState([]);
-  const [customers, setCustomers] = useState([]);
-  const [employees, setEmployees] = useState([]);
+  // Initialize state from localStorage cache or empty array
+  const [orders, setOrders] = useState(() => JSON.parse(localStorage.getItem('cache_orders')) || []);
+  const [inventory, setInventory] = useState(() => JSON.parse(localStorage.getItem('cache_inventory')) || []);
+  const [customers, setCustomers] = useState(() => JSON.parse(localStorage.getItem('cache_customers')) || []);
+  const [employees, setEmployees] = useState(() => JSON.parse(localStorage.getItem('cache_employees')) || []);
+  const [requirementHistory, setRequirementHistory] = useState(() => JSON.parse(localStorage.getItem('cache_requirementHistory')) || []);
 
-  // --- Realtime Sync with Firebase ---
+  // Sync all data from Firebase
   useEffect(() => {
-    onValue(ref(db, 'orders'), (snapshot) => setOrders(snapshot.val() || []));
-    onValue(ref(db, 'inventory'), (snapshot) => setInventory(snapshot.val() || []));
-    onValue(ref(db, 'customers'), (snapshot) => setCustomers(snapshot.val() || []));
-    onValue(ref(db, 'employees'), (snapshot) => setEmployees(snapshot.val() || []));
+    const sync = (path, setter, cacheKey) => {
+      onValue(ref(db, path), (snapshot) => {
+        const data = snapshot.val() || [];
+        setter(data);
+        localStorage.setItem(cacheKey, JSON.stringify(data));
+      });
+    };
+
+    sync('orders', setOrders, 'cache_orders');
+    sync('inventory', setInventory, 'cache_inventory');
+    sync('customers', setCustomers, 'cache_customers');
+    sync('employees', setEmployees, 'cache_employees');
+    sync('requirementHistory', setRequirementHistory, 'cache_requirementHistory');
   }, []);
 
   // --- Bulk Actions for Excel (Saves to Firebase) ---
   const addMultipleInventoryItems = (newItems) => {
-    // Combine new items with existing ones and save to cloud
     const updated = [...newItems, ...inventory];
     set(ref(db, 'inventory'), updated);
   };
@@ -42,8 +52,13 @@ export const DataProvider = ({ children }) => {
     set(ref(db, 'customers'), updated);
   };
 
+  // --- Requirement History Update ---
+  const updateRequirementHistory = (newHistory) => {
+    set(ref(db, 'requirementHistory'), newHistory);
+  };
+
   // --- Standard Actions (Saving to Firebase) ---
-  const addOrder = (order) => set(ref(db, 'orders'), [order, ...orders]);
+  const addOrder = async (order) => await set(ref(db, 'orders'), [order, ...orders]);
   
   const addInventoryItem = (item) => {
     const newItem = { ...item, id: `item-${Date.now()}` };
@@ -58,16 +73,29 @@ export const DataProvider = ({ children }) => {
   // --- Delete/Update Actions ---
   const deleteInventoryItem = (id) => set(ref(db, 'inventory'), inventory.filter(i => i.id !== id));
   const deleteCustomer = (id) => set(ref(db, 'customers'), customers.filter(c => c.id !== id));
+  
   const updateInventoryItem = (id, updated) => {
     const newList = inventory.map(i => i.id === id ? { ...i, ...updated } : i);
     set(ref(db, 'inventory'), newList);
   };
 
+  const deleteOrder = (id) => {
+    const newList = orders.filter(o => o.id !== id);
+    set(ref(db, 'orders'), newList);
+  };
+
+  const updateOrder = async (updatedOrder) => {
+    const newList = orders.map(o => o.id === updatedOrder.id ? updatedOrder : o);
+    await set(ref(db, 'orders'), newList);
+  };
+
   return (
     <DataContext.Provider value={{ 
-      orders, inventory, customers, employees, 
-      addOrder, addInventoryItem, updateInventoryItem, deleteInventoryItem, addMultipleInventoryItems,
-      addCustomer, deleteCustomer, addMultipleCustomers
+      orders, inventory, customers, employees, requirementHistory,
+      addOrder, updateOrder, deleteOrder,
+      addInventoryItem, updateInventoryItem, deleteInventoryItem, addMultipleInventoryItems,
+      addCustomer, deleteCustomer, addMultipleCustomers,
+      updateRequirementHistory
     }}>
       {children}
     </DataContext.Provider>
@@ -172,7 +200,7 @@ function AppContent() {
       {page === 'customers' && <CustomersPage setHeaderActions={setHeaderActions} />}
       {page === 'employees' && <EmployeesPage setHeaderActions={setHeaderActions} />}
       {page === 'place-order' && <PlaceOrderPage setHeaderActions={setHeaderActions} setPage={setPage} />}
-      {page === 'take-order' && <TakeOrderPage setHeaderActions={setHeaderActions} setPage={setPage} editingOrder={editingOrder} onReview={setSelectedOrder} />}
+      {page === 'take-order' && <TakeOrderPage setHeaderActions={setHeaderActions} setPage={setPage} editingOrder={editingOrder} onReview={(order) => { setSelectedOrder(order); setPage('home'); }} />}
       {selectedOrder && <Dialogs order={selectedOrder} onClose={() => setSelectedOrder(null)} onEdit={handleEditOrder} />}
     </Layout>
   );
