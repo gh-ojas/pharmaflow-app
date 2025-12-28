@@ -8,7 +8,7 @@ const Dialogs = ({ order, onClose, onEdit }) => {
   const [showPicker, setShowPicker] = useState(false);
   const [notedDate] = useState(new Date(order.createdAt));
   const [deadline, setDeadline] = useState(new Date());
-  
+  const { updateOrder, toggleItemHighlight } = useData();
   // Picker state
   const [tempDate, setTempDate] = useState(new Date());
   const [selectedHour, setSelectedHour] = useState('12');
@@ -57,8 +57,6 @@ const formatDateTime = (dateStr) => {
     hour12: true
   }).replace(',', ' |');
 };
-
-const { updateOrder } = useData(); // Get the update function
 
 const handleConfirmDeadline = () => {
   const newDeadline = new Date(tempDate);
@@ -119,34 +117,42 @@ const handleShare = () => {
         </div>
 
         {/* Item List Container */}
-        <div className="flex-1 flex flex-col min-h-0">
-          <div className="px-6 py-2 flex items-center justify-between bg-slate-50 border-y border-slate-100">
-            <div className="flex-1 flex justify-between pr-8">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Name</span>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Quantity</span>
-            </div>
-            <button 
-                onClick={() => {
-                onEdit(order); // This triggers the edit state in App.jsx
-                onClose();     // This closes the dialog
-                }} 
-                className="text-emerald-600 hover:text-emerald-800 transition-colors"
-            >
-                <Edit size={14} />
-            </button>
-          </div>
-          
-          <div className="overflow-y-auto px-6 py-1 flex-1 no-scrollbar max-h-[40vh]">
-            <div className="divide-y divide-slate-100">
-              {items.map((item, idx) => (
-                <div key={`item-${idx}`} className="flex justify-between items-center py-2.5">
-                  <span className="font-semibold text-slate-800 text-sm">{item.name}</span>
-                  <span className="text-[12px] text-slate-500 font-medium">{item.qty}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+<div className="flex-1 flex flex-col min-h-0">
+  <div className="px-6 py-2 flex items-center justify-between bg-slate-50 border-y border-slate-100">
+    <div className="flex-1 flex justify-between pr-8">
+      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Name</span>
+      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Quantity</span>
+    </div>
+    <button 
+      onClick={() => { onEdit(order); onClose(); }} 
+      className="text-emerald-600 hover:text-emerald-800"
+    >
+      <Edit size={14} />
+    </button>
+  </div>
+  
+  <div className="overflow-y-auto px-6 py-1 flex-1 no-scrollbar max-h-[40vh]">
+    <div className="divide-y divide-slate-100">
+      {/* Use order.items directly to see state changes immediately */}
+      {order.items.map((item, idx) => (
+        <div 
+          key={`item-${idx}`} 
+          onClick={() => toggleItemHighlight(order.id, idx)}
+          className={`flex justify-between items-center py-2.5 px-3 -mx-3 cursor-pointer transition-colors rounded-lg ${
+            item.isHighlighted ? 'bg-emerald-100/70' : 'hover:bg-slate-50'
+          }`}
+        >
+          <span className={`font-semibold text-sm ${item.isHighlighted ? 'text-emerald-900' : 'text-slate-800'}`}>
+            {item.itemName}
+          </span>
+          <span className={`text-[12px] font-medium ${item.isHighlighted ? 'text-emerald-700' : 'text-slate-500'}`}>
+            {item.quantity} {item.unitType}
+          </span>
         </div>
+      ))}
+    </div>
+  </div>
+</div>
 
         {/* Floating Picker Popover - Center aligned with reduced rounding */}
         {showPicker && (

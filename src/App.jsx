@@ -18,7 +18,11 @@ const DataContext = createContext();
 
 export const DataProvider = ({ children }) => {
   // Initialize state from localStorage cache or empty array
-  const [orders, setOrders] = useState(() => JSON.parse(localStorage.getItem('cache_orders')) || []);
+  const [orders, setOrders] = useState(() => {
+  const cached = localStorage.getItem('cache_orders');
+  // Ensure we return an empty array [] if nothing is found
+  return (cached && cached !== "undefined") ? JSON.parse(cached) : [];
+});
   const [inventory, setInventory] = useState(() => JSON.parse(localStorage.getItem('cache_inventory')) || []);
   const [customers, setCustomers] = useState(() => JSON.parse(localStorage.getItem('cache_customers')) || []);
   const [employees, setEmployees] = useState(() => JSON.parse(localStorage.getItem('cache_employees')) || []);
@@ -28,9 +32,11 @@ export const DataProvider = ({ children }) => {
   useEffect(() => {
     const sync = (path, setter, cacheKey) => {
       onValue(ref(db, path), (snapshot) => {
-        const data = snapshot.val() || [];
-        setter(data);
-        localStorage.setItem(cacheKey, JSON.stringify(data));
+        const data = snapshot.val();
+        // Ensure data is always an array
+        const arrayData = Array.isArray(data) ? data : [];
+        setter(arrayData);
+        localStorage.setItem(cacheKey, JSON.stringify(arrayData));
       });
     };
 
@@ -106,7 +112,7 @@ export const useData = () => useContext(DataContext);
 
 const Layout = ({ children, page, setPage, actions, darkMode, setDarkMode }) => (
   <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-main)' }}>
-    <div className="max-w-xl mx-auto min-h-screen shadow-2xl flex flex-col" style={{ backgroundColor: 'var(--bg-card)' }}>
+    <div className="max-w-7xl mx-auto min-h-screen shadow-2xl flex flex-col" style={{ backgroundColor: 'var(--bg-card)' }}>
       <header 
         style={{ paddingTop: 'var(--safe-area-top)', borderColor: 'var(--border)' }}
         className="flex items-center justify-between border-b sticky top-0 z-30 px-4 h-[calc(4rem+var(--safe-area-top))] bg-inherit backdrop-blur-md"
