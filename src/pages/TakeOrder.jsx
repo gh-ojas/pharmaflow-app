@@ -14,7 +14,7 @@ const SearchableSelect = ({ options, value, onChange, placeholder, stepName, act
   const searchInputRef = useRef(null);
   
   const isOpen = activeStep === stepName;
-  
+
 // TakeOrder.jsx - SearchableSelect component
 useEffect(() => {
   if (isOpen) {
@@ -59,18 +59,23 @@ useEffect(() => {
         // CHANGE: Clicking the button when already open now closes the search
         onClick={() => setActiveStep(isOpen ? null : stepName)}
         className={`w-full p-2.5 rounded-lg flex justify-between items-center text-sm outline-none border-2 transition-all ${
-          isOpen ? 'border-emerald-500 bg-white shadow-md' : 'border-slate-200 bg-slate-50'
-        }`}
+  isOpen ? 'border-emerald-500 shadow-md' : ''
+}`}
+style={{
+  backgroundColor: 'var(--bg-alt)',
+  borderColor: isOpen ? '#10b981' : 'var(--border)',
+  color: value ? 'var(--text-main)' : 'var(--text-muted)'
+}}
       >
-        <span className={value ? 'text-slate-900 font-medium' : 'text-slate-400'}>
-          {value || placeholder}
-        </span>
+        <span className="font-medium" style={{ color: value ? 'var(--text-main)' : 'var(--text-muted)' }}>
+  {value || placeholder}
+</span>
         <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden">
-          <div className="p-2 border-b border-slate-100 flex items-center gap-2 bg-slate-50">
+        <div className="absolute z-50 w-full mt-1 border rounded-xl shadow-xl overflow-hidden" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+          <div className="p-2 border-b flex items-center gap-2" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--bg-alt)' }}>
             <Search className="h-4 w-4 text-slate-400" />
             <input
               ref={searchInputRef}
@@ -85,44 +90,59 @@ useEffect(() => {
             />
           </div>
 
-          <div className="max-h-56 overflow-y-auto overscroll-contain">
+          <div className="max-h-56 overflow-y-auto overscroll-contain custom-scrollbar">
             {filtered.map((opt) => (
               <div
                 key={opt.id}
                 onClick={() => handleSelect(opt)}
-                className="p-3 text-sm hover:bg-emerald-50 cursor-pointer flex justify-between items-center border-b border-slate-50 last:border-0"
+                className="p-3 text-sm cursor-pointer flex justify-between items-center border-b last:border-0"
+    style={{
+      backgroundColor: value === (opt.displayLabel || opt.label) ? 'var(--bg-alt)' : 'transparent',
+      borderColor: 'var(--border)',
+      color: 'var(--text-main)'
+    }}
+    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-alt)'}
+    onMouseLeave={(e) => {
+      if (value !== (opt.displayLabel || opt.label)) {
+        e.currentTarget.style.backgroundColor = 'transparent';
+      }
+    }}
               >
                 <div className="flex items-center gap-2 flex-1">
-                  <span className="font-medium text-slate-700">{opt.displayLabel || opt.label}</span>
+                  <span className="font-medium" style={{ color: 'var(--text-main)' }}>{opt.displayLabel || opt.label}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   {opt.frequency && (
-                    <div className="flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded-full">
-                      <History className="h-3 w-3 text-emerald-600" />
-                      <span className="text-[10px] font-bold text-emerald-600">{opt.frequency}</span>
-                    </div>
-                  )}
+  <div className="flex items-center gap-1 px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--accent)' }}>
+    <History className="h-3 w-3" style={{ color: 'var(--accent-text)' }} />
+    <span className="text-[10px] font-bold" style={{ color: 'var(--accent-text)' }}>{opt.frequency}</span>
+  </div>
+)}
                   {value === (opt.displayLabel || opt.label) && <Check className="h-4 w-4 text-emerald-600" />}
                 </div>
               </div>
             ))}
 
             {search && filtered.length === 0 && !showConfirm && (
-              <div onClick={() => setShowConfirm(true)} className="p-3 text-sm text-emerald-600 font-bold cursor-pointer hover:bg-emerald-50 text-center">
-                + Add New?
-              </div>
-            )}
+  <div onClick={() => setShowConfirm(true)} className="p-3 text-sm font-bold cursor-pointer text-center" style={{ color: 'var(--accent)', backgroundColor: 'transparent' }}
+    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-alt)'}
+    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+  >
+    + Add New?
+  </div>
+)}
 
             {showConfirm && (
-              <div className="p-3 bg-amber-50 border-t border-amber-100 text-center">
-                <button 
-                  onClick={() => handleSelect({ id: `new-${Date.now()}`, label: search, isNew: true })}
-                  className="w-full py-1.5 bg-emerald-600 text-white text-xs font-bold rounded-lg"
-                >
-                  Confirm Add
-                </button>
-              </div>
-            )}
+  <div className="p-3 border-t text-center" style={{ backgroundColor: 'var(--bg-alt)', borderColor: 'var(--border)' }}>
+    <button 
+      onClick={() => handleSelect({ id: `new-${Date.now()}`, label: search, isNew: true })}
+      className="w-full py-1.5 text-white text-xs font-bold rounded-lg"
+      style={{ backgroundColor: 'var(--accent)' }}
+    >
+      Confirm Add
+    </button>
+  </div>
+)}
           </div>
         </div>
       )}
@@ -150,21 +170,41 @@ const QuantityInput = ({ value, onChange, onEnter, onSelectSuggestion, customerN
   }, [customerName, itemName, orders]);
 
   useEffect(() => {
+  if (isOpen) {
+    const timer = setTimeout(() => {
+      inputRef.current?.focus();
+      containerRef.current?.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'center' 
+      });
+    }, 300);
+    return () => clearTimeout(timer);
+  }
+}, [isOpen, setActiveStep]);
+
+  useEffect(() => {
     if (isOpen) {
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [isOpen]);
 
-  return (
+return (
     <div className="relative" ref={containerRef}>
       <input 
         ref={inputRef}
         type="text" 
+        inputMode="decimal" // Forces numeric keyboard with decimal support
+        pattern="[0-9]*"    // Suggests numeric input to mobile browsers
         placeholder="Qty (10+2)" 
         value={value}
         className={`w-full p-2.5 rounded-lg outline-none border-2 transition-all text-sm font-medium ${
-          isOpen ? 'border-emerald-500 bg-white' : 'border-slate-200 bg-slate-50'
-        }`}
+  isOpen ? 'border-emerald-500' : ''
+}`}
+style={{
+  backgroundColor: 'var(--bg-alt)',
+  borderColor: isOpen ? '#10b981' : 'var(--border)',
+  color: 'var(--text-main)'
+}}
         onChange={onChange}
         onFocus={() => setActiveStep('qty')}
         onKeyDown={(e) => {
@@ -173,22 +213,26 @@ const QuantityInput = ({ value, onChange, onEnter, onSelectSuggestion, customerN
       />
       
       {isOpen && suggestions.length > 0 && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden">
-          <div className="p-2 bg-emerald-50 border-b border-emerald-100">
-            <p className="text-[10px] font-bold text-emerald-700 uppercase">Previous Quantities</p>
+        <div className="absolute z-50 w-full mt-1 border rounded-xl shadow-xl overflow-hidden" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+          <div className="p-2 border-b" style={{ backgroundColor: 'var(--bg-alt)', borderColor: 'var(--border)' }}>
+            <p className="text-[10px] font-bold uppercase" style={{ color: 'var(--text-main)' }}>Previous Quantities</p>
           </div>
           <div className="max-h-40 overflow-y-auto">
+
             {suggestions.map((qty, idx) => (
-              <div
-                key={idx}
-                onClick={() => { 
-                  // CHANGE: Auto-triggers add to list when clicking a suggestion
-                  onSelectSuggestion(qty);
-                }}
-                className="p-3 text-sm hover:bg-emerald-50 cursor-pointer border-b border-slate-50 last:border-0 flex items-center justify-between"
-              >
-                <span className="font-bold text-slate-700">{qty}</span>
-                <span className="text-[10px] text-slate-400 font-bold uppercase">Click to use</span>
+  <div
+    key={idx}
+    onClick={() => { 
+      onSelectSuggestion(qty);
+      setActiveStep(null);
+    }}
+    className="p-3 text-sm cursor-pointer border-b last:border-0"
+    style={{ borderColor: 'var(--border)', color: 'var(--text-main)' }}
+    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-alt)'}
+    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+  >
+    <span className="font-bold" style={{ color: 'var(--text-main)' }}>{qty}</span>
+                <span className="text-[10px] text-slate-400 font-bold uppercase"></span>
               </div>
             ))}
           </div>
@@ -342,11 +386,12 @@ const inventoryOptions = useMemo(() => {
 }, [inventory, orders, customerName]);
 
 return (
-    <div className="space-y-6 pb-24">
+  <div className="min-h-screen pb-[90vh]"> 
+    <div className="space-y-6"> 
       {/* Input Section */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-4">
+      <div className="p-4 rounded-xl border shadow-sm space-y-4" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)' }}>
         <div>
-          <label className="text-sm font-semibold text-slate-700 block mb-1.5">Customer</label>
+          <label className="text-sm font-semibold block mb-1.5" style={{ color: 'var(--text-main)' }}>Customer</label>
           <SearchableSelect 
             stepName="customer" activeStep={activeStep} setActiveStep={setActiveStep} nextStep="item"
             placeholder="Select customer..."
@@ -360,7 +405,7 @@ return (
         </div>
 
         <div className="space-y-4 pt-2">
-          <label className="text-sm font-semibold text-slate-700 block -mb-2">Add Item</label>
+          <label className="text-sm font-semibold block -mb-2" style={{ color: 'var(--text-main)' }}>Add Item</label>
           <SearchableSelect 
             stepName="item" activeStep={activeStep} setActiveStep={setActiveStep} nextStep="qty"
             placeholder="Select item..."
@@ -382,7 +427,10 @@ return (
                 value={quantity}
                 onChange={(e) => { if (/^[0-9.+]*$/.test(e.target.value)) setQuantity(e.target.value); }}
                 onEnter={() => handleAddItem()}
-                onSelectSuggestion={(qty) => handleAddItem(null, qty)}
+                onSelectSuggestion={(qty) => {
+                  setQuantity(qty.toString());
+                  setActiveStep('qty'); 
+                }}
                 customerName={customerName} itemName={selectedItem?.itemName} orders={orders}
               />
             </div>
@@ -406,17 +454,22 @@ return (
                     }, 200);
                   }}
                   className={`w-full p-2.5 rounded-lg text-sm outline-none border-2 transition-all ${
-                    activeStep === 'unit' ? 'border-emerald-500 bg-white shadow-md' : 'border-slate-200 bg-slate-50'
+                    activeStep === 'unit' ? 'border-emerald-500 shadow-md' : ''
                   }`}
+                  style={{
+                    backgroundColor: 'var(--bg-alt)',
+                    borderColor: activeStep === 'unit' ? '#10b981' : 'var(--border)',
+                    color: 'var(--text-main)'
+                  }}
                 />
-                <ChevronDown className={`absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none transition-transform ${activeStep === 'unit' ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none transition-transform ${activeStep === 'unit' ? 'rotate-180' : ''}`} style={{ color: 'var(--text-muted)' }} />
               </div>
 
               {activeStep === 'unit' && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setActiveStep(null)} />
-                  <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in duration-100">
-                    <div className="max-h-56 overflow-y-auto custom-scrollbar">
+                  <div className="absolute z-50 w-full mt-1 border rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in duration-100" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+                    <div className="max-h-56 overflow-y-auto">
                       {unitOptions.map((opt) => (
                         <div
                           key={opt.id}
@@ -427,10 +480,15 @@ return (
                               updateInventoryItem(selectedItem.id, { unitType: opt.label });
                             }
                           }}
-                          className="p-3 text-sm hover:bg-emerald-50 cursor-pointer flex justify-between items-center border-b border-slate-50 last:border-0"
+                          className="p-3 text-sm hover:bg-opacity-50 cursor-pointer border-b last:border-0"
+                          style={{
+                            backgroundColor: unitType === opt.label ? 'var(--bg-alt)' : 'transparent',
+                            borderColor: 'var(--border)',
+                            color: 'var(--text-main)'
+                          }}
                         >
-                          <span className="font-medium text-slate-700">{opt.label}</span>
-                          {unitType === opt.label && <Check className="h-4 w-4 text-emerald-600" />}
+                          <span className="font-medium">{opt.label}</span>
+                          {unitType === opt.label && <Check className="h-4 w-4 text-emerald-600 inline-block ml-2" />}
                         </div>
                       ))}
                     </div>
@@ -440,7 +498,7 @@ return (
             </div>
           </div>
 
-          <button onClick={handleAddItem} className="w-full py-2.5 bg-emerald-100 text-emerald-700 font-bold rounded-lg flex items-center justify-center gap-2 border border-emerald-200">
+          <button onClick={handleAddItem} className="w-full py-2.5 font-bold rounded-lg flex items-center justify-center gap-2" style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-text)' }}>
             <PlusCircle className="h-5 w-5" /> Add to List
           </button>
         </div>
@@ -448,23 +506,28 @@ return (
 
       {/* Order Summary Section */}
       {orderItems.length > 0 && (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-          <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
-            <h3 className="font-bold text-slate-800 text-sm truncate uppercase">Current Order</h3>
-            <span className="bg-emerald-600 text-white px-2 py-0.5 rounded text-[10px] font-bold">{orderItems.length} ITEMS</span>
+        <div className="rounded-xl border shadow-sm" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+          <div className="p-4 border-b flex justify-between items-center" style={{ backgroundColor: 'var(--bg-alt)', borderColor: 'var(--border)' }}>
+            <h3 className="font-bold text-sm truncate uppercase" style={{ color: 'var(--text-main)' }}>Current Order</h3>
+            <span className="px-2 py-0.5 rounded text-[10px] font-bold" style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-text)' }}>{orderItems.length} ITEMS</span>
           </div>
           <table className="w-full text-left">
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y" style={{ borderColor: 'var(--border)' }}>
               {orderItems.map((item, idx) => (
-                <tr key={idx} className="relative">
-                  <td className="p-3 font-medium text-slate-900 text-xs truncate max-w-[140px]">{item.itemName}</td>
+                <tr key={idx} className="relative border-b" style={{ borderColor: 'var(--border)' }}>
+                  <td className="p-3 font-medium text-xs truncate max-w-[140px]" style={{ color: 'var(--text-main)' }}>{item.itemName}</td>
                   <td className="p-3">
                     <div className="flex items-center justify-end gap-1.5">
                       <input 
                         type="text" 
                         value={item.quantity} 
                         onChange={(e) => updateTableQty(idx, e.target.value)} 
-                        className="w-10 p-1 text-center font-bold border border-slate-200 rounded bg-white outline-none focus:border-emerald-500 text-xs" 
+                        className="w-10 p-1 text-center font-bold border rounded outline-none focus:border-emerald-500 text-xs" 
+                        style={{ 
+                          backgroundColor: 'var(--bg-alt)', 
+                          borderColor: 'var(--border)',
+                          color: 'var(--text-main)'
+                        }}
                       />
                       
                       <div className="relative w-16">
@@ -482,12 +545,16 @@ return (
                               if (!item.isNew) updateInventoryItem(item.id, { unitType: item.unitType });
                             }, 200);
                           }}
-                          className="w-full p-1 border-b border-transparent hover:border-slate-200 focus:border-emerald-500 text-[9px] font-bold uppercase outline-none bg-transparent text-slate-500 text-right"
+                          className="w-full p-1 border-b border-transparent hover:border-opacity-50 focus:border-emerald-500 text-[9px] font-bold uppercase outline-none bg-transparent text-right"
+                          style={{ 
+                            color: 'var(--text-muted)',
+                            borderColor: activeStep === `cart-unit-${idx}` ? '#10b981' : 'var(--border)'
+                          }}
                         />
                         {activeStep === `cart-unit-${idx}` && (
                           <>
                             <div className="fixed inset-0 z-[90]" onClick={() => setActiveStep(null)} />
-                            <div className="absolute z-[100] right-0 w-36 mt-1 bg-white border border-slate-200 rounded-lg shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-1">
+                            <div className="absolute z-[100] right-0 w-36 mt-1 border rounded-lg shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-1" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)' }}>
                               <div className="max-h-40 overflow-y-auto">
                                 {unitOptions.map(opt => (
                                   <div 
@@ -499,7 +566,12 @@ return (
                                       updateInventoryItem(item.id, { unitType: opt.label });
                                       setActiveStep(null);
                                     }}
-                                    className="p-2 text-[10px] hover:bg-emerald-50 cursor-pointer border-b border-slate-50 last:border-0 font-semibold text-slate-700"
+                                    className="p-2 text-[10px] hover:bg-opacity-50 cursor-pointer border-b last:border-0 font-semibold"
+                                    style={{
+                                      backgroundColor: item.unitType === opt.label ? 'var(--bg-alt)' : 'transparent',
+                                      borderColor: 'var(--border)',
+                                      color: 'var(--text-main)'
+                                    }}
                                   >
                                     {opt.label}
                                   </div>
@@ -518,15 +590,16 @@ return (
               ))}
             </tbody>
           </table>
-          <div className="p-4 border-t border-slate-100 grid grid-cols-2 gap-3">
-            <button onClick={() => processOrder(false)} className="py-3 bg-slate-100 text-slate-900 font-bold rounded-xl flex items-center justify-center gap-2 border border-slate-200">
+          <div className="p-4 border-t grid grid-cols-2 gap-3" style={{ borderColor: 'var(--border)' }}>
+            <button onClick={() => processOrder(false)} className="py-3 font-bold rounded-xl flex items-center justify-center gap-2 border" style={{ backgroundColor: 'var(--bg-alt)', color: 'var(--text-main)', borderColor: 'var(--border)' }}>
               <Save className="h-5 w-5" /> {editingOrder ? 'Update' : 'Save'}
             </button>
-            <button onClick={() => processOrder(true)} className="py-3 bg-slate-900 text-white font-bold rounded-xl flex items-center justify-center gap-2">
+            <button onClick={() => processOrder(true)} className="py-3 font-bold rounded-xl flex items-center justify-center gap-2" style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-text)' }}>
               <Share2 className="h-5 w-5" /> Review & Share
             </button>
           </div>
         </div>
       )}
     </div>
-  );}
+  </div>
+);}
