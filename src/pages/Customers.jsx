@@ -41,10 +41,19 @@ export default function CustomersPage({ setHeaderActions }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const [columns, setColumns] = useState([
+// 1. Updated Initial State
+const [columns, setColumns] = useState(() => {
+  const saved = localStorage.getItem('customer_columns');
+  return saved ? JSON.parse(saved) : [
     { id: 'name', label: "Customer's Name", permanent: true, visible: true, width: 'w-64' },
     { id: 'area', label: 'Area', permanent: true, visible: true, width: 'w-48' },
-  ]);
+  ];
+});
+
+// 2. Persistence Hook
+useEffect(() => {
+  localStorage.setItem('customer_columns', JSON.stringify(columns));
+}, [columns]);
 
   useEffect(() => {
     setHeaderActions(

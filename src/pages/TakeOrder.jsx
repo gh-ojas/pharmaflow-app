@@ -15,12 +15,20 @@ const SearchableSelect = ({ options, value, onChange, placeholder, stepName, act
   
   const isOpen = activeStep === stepName;
   
-  useEffect(() => {
-    if (isOpen) {
-      const timer = setTimeout(() => searchInputRef.current?.focus(), 100);
-      return () => clearTimeout(timer);
-    }
-  }, [isOpen]);
+// TakeOrder.jsx - SearchableSelect component
+useEffect(() => {
+  if (isOpen) {
+    const timer = setTimeout(() => {
+      searchInputRef.current?.focus();
+      // Scroll the container to the top of the screen with some padding
+      containerRef.current?.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'start' 
+      });
+    }, 150); // Slight delay to wait for keyboard animation
+    return () => clearTimeout(timer);
+  }
+}, [isOpen]);
   
   const filtered = useMemo(() => 
     options.filter(opt => opt.label.toLowerCase().includes(search.toLowerCase())),
@@ -194,7 +202,7 @@ const QuantityInput = ({ value, onChange, onEnter, onSelectSuggestion, customerN
 // MAIN TAKE ORDER COMPONENT
 // ============================================================================
 export default function TakeOrderPage({ setPage, setHeaderActions, editingOrder, onReview }) {
-  const { customers, inventory, orders, addOrder, updateOrder, addInventoryItem, addCustomer } = useData();
+  const { customers, inventory, orders, addOrder, updateOrder, addInventoryItem, addCustomer, updateInventoryItem } = useData();
   
   const [activeStep, setActiveStep] = useState('customer');
   const [customerName, setCustomerName] = useState(editingOrder?.customerName || '');
@@ -239,7 +247,7 @@ export default function TakeOrderPage({ setPage, setHeaderActions, editingOrder,
     setActiveStep('item'); // Jump back to item for next entry
   };
 
-const processOrder = async (shouldReview) => {
+const processOrder = (shouldReview) => {
   if (orderItems.length === 0) return alert("Add items first");
 
   const finalOrder = {
@@ -251,46 +259,91 @@ const processOrder = async (shouldReview) => {
     deadline: editingOrder?.deadline || null
   };
 
-  try {
-    // 1. Await the database update based on whether we are editing or adding
-    if (editingOrder) {
-      await updateOrder(finalOrder);
-    } else {
-      await addOrder(finalOrder);
-    }
-
-    // 2. Trigger the UI response
-    if (shouldReview) {
-      onReview(finalOrder); // This must trigger setSelectedOrder in App.jsx
-    } else {
-      setPage('home');
-    }
-  } catch (error) {
-    alert("Error saving to cloud. Please check connection.");
+  // 1. Trigger the UI immediately using the local object
+  if (shouldReview) {
+    onReview(finalOrder); 
+  } else {
+    setPage('home');
   }
+
+  // 2. Perform the Firebase save in the background
+  const saveAction = editingOrder ? updateOrder(finalOrder) : addOrder(finalOrder);
+  
+  saveAction.catch((error) => {
+    console.error("Background save failed:", error);
+    alert("Warning: Order shown but not saved to cloud. Check connection.");
+  });
 };
 
-  const inventoryOptions = useMemo(() => {
-    const customerOrders = orders.filter(o => o.customerName === customerName);
-    const itemFrequency = {};
-    customerOrders.forEach(order => {
-      order.items?.forEach(item => {
-        itemFrequency[item.itemName] = (itemFrequency[item.itemName] || 0) + 1;
+
+const unitOptions = useMemo(() => {
+  const defaults = ["Packets", "Boxes", "Cases"];
+  const inventoryUnits = inventory
+    .map(item => item.unitType)
+    .filter(u => u && !defaults.includes(u));
+  return [...defaults, ...new Set(inventoryUnits)].map(u => ({ id: u, label: u }));
+}, [inventory]);
+
+// TakeOrder.jsx - Inside TakeOrderPage
+const unitContainerRef = useRef(null);
+
+useEffect(() => {
+  if (activeStep === 'unit') {
+    const timer = setTimeout(() => {
+      unitContainerRef.current?.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'start' 
       });
+    }, 150);
+    return () => clearTimeout(timer);
+  }
+}, [activeStep]);
+
+// TakeOrder.jsx - Inside TakeOrderPage
+const inventoryOptions = useMemo(() => {
+  const globalFreq = {};
+  const customerFreq = {};
+
+  // 1. Map frequencies
+  orders.forEach(order => {
+    order.items?.forEach(item => {
+      globalFreq[item.itemName] = (globalFreq[item.itemName] || 0) + 1;
+      if (order.customerName === customerName) {
+        customerFreq[item.itemName] = (customerFreq[item.itemName] || 0) + 1;
+      }
     });
+  });
 
-    return [...inventory].sort((a, b) => {
-      const freqA = itemFrequency[a.itemName] || 0;
-      const freqB = itemFrequency[b.itemName] || 0;
-      return freqB !== freqA ? freqB - freqA : a.itemName.localeCompare(b.itemName);
-    }).map(i => ({ 
-      id: i.id, label: i.itemName, displayLabel: i.itemName, itemName: i.itemName, 
-      unitType: i.unitType, frequency: itemFrequency[i.itemName] || null
-    }));
-  }, [inventory, customerName, orders]);
+  // 2. Sort with 3 levels of priority
+  return [...inventory].sort((a, b) => {
+    const hasCustomerHistoryA = customerFreq[a.itemName] ? 1 : 0;
+    const hasCustomerHistoryB = customerFreq[b.itemName] ? 1 : 0;
 
-  return (
+    // Level 1: Prioritize items this customer bought before
+    if (hasCustomerHistoryB !== hasCustomerHistoryA) {
+      return hasCustomerHistoryB - hasCustomerHistoryA;
+    }
+
+    // Level 2: Sort by Global Frequency (Most ordered overall)
+    const gFreqA = globalFreq[a.itemName] || 0;
+    const gFreqB = globalFreq[b.itemName] || 0;
+    if (gFreqB !== gFreqA) return gFreqB - gFreqA;
+
+    // Level 3: Alphabetical
+    return a.itemName.localeCompare(b.itemName);
+  }).map(i => ({ 
+    id: i.id, 
+    label: i.itemName, 
+    displayLabel: i.itemName, 
+    itemName: i.itemName, 
+    unitType: i.unitType, 
+    frequency: customerFreq[i.itemName] || null // Badge shows specific customer history only
+  }));
+}, [inventory, orders, customerName]);
+
+return (
     <div className="space-y-6 pb-24">
+      {/* Input Section */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-4">
         <div>
           <label className="text-sm font-semibold text-slate-700 block mb-1.5">Customer</label>
@@ -328,20 +381,62 @@ const processOrder = async (shouldReview) => {
                 activeStep={activeStep} setActiveStep={setActiveStep}
                 value={quantity}
                 onChange={(e) => { if (/^[0-9.+]*$/.test(e.target.value)) setQuantity(e.target.value); }}
-                // CHANGE: Pressing Enter now adds to list directly, skipping Unit
                 onEnter={() => handleAddItem()}
                 onSelectSuggestion={(qty) => handleAddItem(null, qty)}
                 customerName={customerName} itemName={selectedItem?.itemName} orders={orders}
               />
             </div>
-            <div className="flex-1">
-              <SearchableSelect 
-                stepName="unit" activeStep={activeStep} setActiveStep={setActiveStep} nextStep={null}
-                placeholder="Unit" 
-                options={UNIT_OPTIONS.map(u => ({ id: u, label: u }))}
-                value={unitType} 
-                onChange={(opt) => setUnitType(opt.label)} 
-              />
+           
+            <div className="flex-1 relative" ref={unitContainerRef}>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={unitType}
+                  placeholder="Unit"
+                  onChange={(e) => {
+                    setUnitType(e.target.value);
+                    if (activeStep !== 'unit') setActiveStep('unit');
+                  }}
+                  onFocus={() => setActiveStep('unit')}
+                  onBlur={() => {
+                    setTimeout(() => {
+                      if (selectedItem?.id && !selectedItem.isNew && unitType) {
+                        updateInventoryItem(selectedItem.id, { unitType: unitType });
+                      }
+                    }, 200);
+                  }}
+                  className={`w-full p-2.5 rounded-lg text-sm outline-none border-2 transition-all ${
+                    activeStep === 'unit' ? 'border-emerald-500 bg-white shadow-md' : 'border-slate-200 bg-slate-50'
+                  }`}
+                />
+                <ChevronDown className={`absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none transition-transform ${activeStep === 'unit' ? 'rotate-180' : ''}`} />
+              </div>
+
+              {activeStep === 'unit' && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setActiveStep(null)} />
+                  <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in duration-100">
+                    <div className="max-h-56 overflow-y-auto custom-scrollbar">
+                      {unitOptions.map((opt) => (
+                        <div
+                          key={opt.id}
+                          onClick={() => {
+                            setUnitType(opt.label);
+                            setActiveStep(null);
+                            if (selectedItem?.id && !selectedItem.isNew) {
+                              updateInventoryItem(selectedItem.id, { unitType: opt.label });
+                            }
+                          }}
+                          className="p-3 text-sm hover:bg-emerald-50 cursor-pointer flex justify-between items-center border-b border-slate-50 last:border-0"
+                        >
+                          <span className="font-medium text-slate-700">{opt.label}</span>
+                          {unitType === opt.label && <Check className="h-4 w-4 text-emerald-600" />}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -351,25 +446,73 @@ const processOrder = async (shouldReview) => {
         </div>
       </div>
 
+      {/* Order Summary Section */}
       {orderItems.length > 0 && (
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
           <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
             <h3 className="font-bold text-slate-800 text-sm truncate uppercase">Current Order</h3>
             <span className="bg-emerald-600 text-white px-2 py-0.5 rounded text-[10px] font-bold">{orderItems.length} ITEMS</span>
           </div>
-          <table className="w-full text-left text-sm">
+          <table className="w-full text-left">
             <tbody className="divide-y divide-slate-100">
               {orderItems.map((item, idx) => (
-                <tr key={idx}>
-                  <td className="p-4 font-medium text-slate-900">{item.itemName}</td>
-                  <td className="p-4">
-                    <div className="flex items-center gap-2">
-                      <input type="text" value={item.quantity} onChange={(e) => updateTableQty(idx, e.target.value)} className="w-16 p-1 text-center font-bold border-2 border-emerald-500 rounded-md bg-slate-50 outline-none" />
-                      <span className="text-slate-500 text-[10px] font-bold uppercase">{item.unitType}</span>
+                <tr key={idx} className="relative">
+                  <td className="p-3 font-medium text-slate-900 text-xs truncate max-w-[140px]">{item.itemName}</td>
+                  <td className="p-3">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <input 
+                        type="text" 
+                        value={item.quantity} 
+                        onChange={(e) => updateTableQty(idx, e.target.value)} 
+                        className="w-10 p-1 text-center font-bold border border-slate-200 rounded bg-white outline-none focus:border-emerald-500 text-xs" 
+                      />
+                      
+                      <div className="relative w-16">
+                        <input
+                          type="text"
+                          value={item.unitType}
+                          onChange={(e) => {
+                            const newItems = [...orderItems];
+                            newItems[idx].unitType = e.target.value;
+                            setOrderItems(newItems);
+                          }}
+                          onFocus={() => setActiveStep(`cart-unit-${idx}`)}
+                          onBlur={() => {
+                            setTimeout(() => {
+                              if (!item.isNew) updateInventoryItem(item.id, { unitType: item.unitType });
+                            }, 200);
+                          }}
+                          className="w-full p-1 border-b border-transparent hover:border-slate-200 focus:border-emerald-500 text-[9px] font-bold uppercase outline-none bg-transparent text-slate-500 text-right"
+                        />
+                        {activeStep === `cart-unit-${idx}` && (
+                          <>
+                            <div className="fixed inset-0 z-[90]" onClick={() => setActiveStep(null)} />
+                            <div className="absolute z-[100] right-0 w-36 mt-1 bg-white border border-slate-200 rounded-lg shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-1">
+                              <div className="max-h-40 overflow-y-auto">
+                                {unitOptions.map(opt => (
+                                  <div 
+                                    key={opt.id}
+                                    onClick={() => {
+                                      const newItems = [...orderItems];
+                                      newItems[idx].unitType = opt.label;
+                                      setOrderItems(newItems);
+                                      updateInventoryItem(item.id, { unitType: opt.label });
+                                      setActiveStep(null);
+                                    }}
+                                    className="p-2 text-[10px] hover:bg-emerald-50 cursor-pointer border-b border-slate-50 last:border-0 font-semibold text-slate-700"
+                                  >
+                                    {opt.label}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </td>
-                  <td className="p-4 text-right">
-                    <button onClick={() => setOrderItems(prev => prev.filter((_, i) => i !== idx))} className="text-rose-500 p-1"><Trash2 className="h-4 w-4" /></button>
+                  <td className="p-3 text-right w-8">
+                    <button onClick={() => setOrderItems(prev => prev.filter((_, i) => i !== idx))} className="text-rose-400 p-1"><Trash2 className="h-4 w-4" /></button>
                   </td>
                 </tr>
               ))}
@@ -386,5 +529,4 @@ const processOrder = async (shouldReview) => {
         </div>
       )}
     </div>
-  );
-}
+  );}

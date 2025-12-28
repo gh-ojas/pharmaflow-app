@@ -43,12 +43,19 @@ export default function InventoryPage({ setHeaderActions }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const [columns, setColumns] = useState([
+const [columns, setColumns] = useState(() => {
+  const saved = localStorage.getItem('inventory_columns');
+  return saved ? JSON.parse(saved) : [
     { id: 'itemName', label: 'Item Name', permanent: true, visible: true, width: 'w-64' },
     { id: 'company', label: 'Company', permanent: true, visible: true, width: 'w-32' }, 
     { id: 'unitType', label: 'Unit', permanent: true, visible: false, width: 'w-32' }, 
     { id: 'quantity', label: 'Stock', permanent: true, visible: true, width: 'w-24' },
-  ]);
+  ];
+});
+
+useEffect(() => {
+  localStorage.setItem('inventory_columns', JSON.stringify(columns));
+}, [columns]);
 
   useEffect(() => {
     setHeaderActions(
@@ -206,17 +213,20 @@ const handleFileUpload = (e) => {
                     <tr key={col.id} className="border-b border-slate-50 last:border-0">
                       <td className="p-3 w-1/3 text-[10px] font-bold text-slate-400 uppercase bg-slate-50/30 border-r border-slate-50">{col.label}</td>
                       <td className="p-3">
-                        {isEditingDetails ? (
-                          col.id === 'unitType' ? (
-                            <StyledSelect value={selectedDetails.unitType} options={ALL_UNITS} onChange={(val) => setSelectedDetails({...selectedDetails, unitType: val})} />
-                          ) : (
-                            <input type={col.id === 'quantity' ? 'number' : 'text'} className="w-full p-1 border border-slate-200 rounded text-sm font-medium outline-none"
-                              value={selectedDetails[col.id] || ''} onChange={(e) => setSelectedDetails({...selectedDetails, [col.id]: e.target.value})} />
-                          )
-                        ) : (
-                          <span className="text-sm font-medium text-slate-700">{selectedDetails[col.id] || (col.id === 'quantity' ? '0' : '-')}</span>
-                        )}
-                      </td>
+  {isEditingDetails ? (
+    <input 
+      type={col.id === 'quantity' ? 'number' : 'text'} 
+      className="w-full p-1 border border-slate-200 rounded text-sm font-medium outline-none focus:border-emerald-500"
+      value={selectedDetails[col.id] || ''} 
+      onChange={(e) => setSelectedDetails({...selectedDetails, [col.id]: e.target.value})}
+      placeholder={col.label}
+    />
+  ) : (
+    <span className="text-sm font-medium text-slate-700">
+      {selectedDetails[col.id] || (col.id === 'quantity' ? '0' : '-')}
+    </span>
+  )}
+</td>
                     </tr>
                   ))}
                 </tbody>
@@ -272,24 +282,70 @@ const handleFileUpload = (e) => {
 
       {/* Add New Item Modal (Full Logic Restored) */}
       {isAdding && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/30 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-xs rounded-3xl p-5 space-y-3 shadow-2xl">
-            <h3 className="text-xs font-black text-slate-800 uppercase text-center mb-1">New Item</h3>
-            <input type="text" placeholder="Item Name" className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl outline-none text-sm font-medium" 
-                   value={newItem.itemName} onChange={(e) => setNewItem({...newItem, itemName: e.target.value})} />
-            <div className="grid grid-cols-2 gap-2">
-              <StyledSelect value={newItem.unitType} options={ALL_UNITS} onChange={(val) => setNewItem({...newItem, unitType: val})} />
-              <input type="number" placeholder="Stock" className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl outline-none text-sm font-bold" 
-                     value={newItem.quantity} onChange={(e) => setNewItem({...newItem, quantity: parseInt(e.target.value) || 0})} />
-            </div>
-            <div className="flex gap-2 pt-2">
-              <button onClick={() => setIsAdding(false)} className="flex-1 py-3 text-[10px] font-black text-slate-400 uppercase">Cancel</button>
-              <button onClick={() => { if(newItem.itemName){ addInventoryItem(newItem); setIsAdding(false); setNewItem({itemName:'', unitType:'Pieces', quantity:0}); } }} 
-                      className="flex-1 py-3 text-[10px] font-black text-white bg-emerald-600 rounded-xl uppercase shadow-lg shadow-emerald-100">Add</button>
-            </div>
+  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/30 backdrop-blur-sm">
+    <div className="bg-white w-full max-w-xs rounded-3xl p-5 space-y-3 shadow-2xl">
+      <h3 className="text-xs font-black text-slate-800 uppercase text-center mb-1">New Item</h3>
+      
+      <input 
+        type="text" 
+        placeholder="Item Name" 
+        className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl outline-none text-sm font-medium" 
+        value={newItem.itemName} 
+        onChange={(e) => setNewItem({...newItem, itemName: e.target.value})} 
+      />
+
+      <div className="grid grid-cols-2 gap-2">
+        {/* Custom Typable Dropdown */}
+        <div className="relative group">
+          <input 
+            type="text"
+            placeholder="Unit"
+            className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl outline-none text-sm font-medium focus:border-emerald-500"
+            value={newItem.unitType}
+            onChange={(e) => setNewItem({...newItem, unitType: e.target.value})}
+          />
+          
+          {/* Scrollable Dropdown Menu */}
+          <div className="absolute left-0 right-0 top-full mt-1 max-h-40 overflow-y-auto bg-white border border-slate-100 rounded-xl shadow-xl z-50 opacity-0 invisible group-focus-within:opacity-100 group-focus-within:visible transition-all">
+            {[...new Set([...ALL_UNITS, ...inventory.map(i => i.unitType)])].map((unit) => (
+              <div 
+                key={unit}
+                onMouseDown={() => setNewItem({...newItem, unitType: unit})}
+                className="px-4 py-2 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 cursor-pointer transition-colors"
+              >
+                {unit}
+              </div>
+            ))}
           </div>
         </div>
-      )}
+
+        <input 
+          type="number" 
+          placeholder="Stock" 
+          className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl outline-none text-sm font-bold" 
+          value={newItem.quantity} 
+          onChange={(e) => setNewItem({...newItem, quantity: parseInt(e.target.value) || 0})} 
+        />
+      </div>
+
+      <div className="flex gap-2 pt-2">
+        <button onClick={() => setIsAdding(false)} className="flex-1 py-3 text-[10px] font-black text-slate-400 uppercase">Cancel</button>
+        <button 
+          onClick={() => { 
+            if(newItem.itemName){ 
+              addInventoryItem(newItem); 
+              setIsAdding(false); 
+              setNewItem({itemName:'', unitType:'Pieces', quantity:0}); 
+            } 
+          }} 
+          className="flex-1 py-3 text-[10px] font-black text-white bg-emerald-600 rounded-xl uppercase shadow-lg shadow-emerald-100"
+        >
+          Add
+        </button>
+      </div>
+    </div>
+  </div>
+)}
     </div>
   );
 }
