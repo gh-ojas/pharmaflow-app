@@ -9,15 +9,29 @@ const Dialogs = ({ order, onClose, onEdit }) => {
   const [notedDate] = useState(new Date(order.createdAt));
   const [deadline, setDeadline] = useState(new Date());
   const { updateOrder, toggleItemHighlight } = useData();
-  // Picker state
+  const [viewMonth, setViewMonth] = useState(new Date().getMonth());
+  const [viewYear, setViewYear] = useState(new Date().getFullYear());
   const [tempDate, setTempDate] = useState(new Date());
   const [selectedHour, setSelectedHour] = useState('12');
   const [selectedMinute, setSelectedMinute] = useState(0);
   const [ampm, setAmpm] = useState('PM');
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const firstDayOfMonth = new Date(viewYear, viewMonth, 1).getDay();
+  const monthName = new Date(viewYear, viewMonth).toLocaleString('default', { month: 'short' });
   const items = order.items.map(item => ({
     name: item.itemName,
     qty: `${item.quantity} ${item.unitType}`
   }));
+  
+  const changeMonth = (offset) => {
+  let newMonth = viewMonth + offset;
+  let newYear = viewYear;
+  if (newMonth > 11) { newMonth = 0; newYear++; }
+  if (newMonth < 0) { newMonth = 11; newYear--; }
+  setViewMonth(newMonth);
+  setViewYear(newYear);
+  };
+
   // Update Dialogs.jsx props to include onEdit
 const Dialogs = ({ order, onClose, onEdit }) => {
   if (!order) return null; //
@@ -117,15 +131,18 @@ const handleShare = () => {
         </div>
 
         {/* Item List Container */}
-<div className="flex-1 flex flex-col min-h-0">
+        <div className="flex-1 flex flex-col min-h-0">
   <div className="px-6 py-2 flex items-center justify-between bg-slate-50 border-y border-slate-100">
     <div className="flex-1 flex justify-between pr-8">
       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Name</span>
       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Quantity</span>
     </div>
     <button 
-      onClick={() => { onEdit(order); onClose(); }} 
-      className="text-emerald-600 hover:text-emerald-800"
+      onClick={() => {
+        onEdit(order);
+        onClose();
+      }} 
+      className="text-emerald-600 hover:text-emerald-800 transition-colors"
     >
       <Edit size={14} />
     </button>
@@ -133,23 +150,34 @@ const handleShare = () => {
   
   <div className="overflow-y-auto px-6 py-1 flex-1 no-scrollbar max-h-[40vh]">
     <div className="divide-y divide-slate-100">
-      {/* Use order.items directly to see state changes immediately */}
-      {order.items.map((item, idx) => (
-        <div 
-          key={`item-${idx}`} 
-          onClick={() => toggleItemHighlight(order.id, idx)}
-          className={`flex justify-between items-center py-2.5 px-3 -mx-3 cursor-pointer transition-colors rounded-lg ${
-            item.isHighlighted ? 'bg-emerald-100/70' : 'hover:bg-slate-50'
-          }`}
-        >
-          <span className={`font-semibold text-sm ${item.isHighlighted ? 'text-emerald-900' : 'text-slate-800'}`}>
-            {item.itemName}
-          </span>
-          <span className={`text-[12px] font-medium ${item.isHighlighted ? 'text-emerald-700' : 'text-slate-500'}`}>
-            {item.quantity} {item.unitType}
-          </span>
-        </div>
-      ))}
+{order.items.map((item, idx) => (
+  <div 
+    key={`item-${idx}`} 
+    onClick={() => {
+      // 1. Toggle highlight (Your existing logic)
+      toggleItemHighlight(order.id, idx);
+
+      // 2. Auto-tick "Pick" column if not already ticked
+      if (!order.taken) {
+        updateOrder({ 
+          ...order, 
+          taken: true 
+        });
+      }
+    }}
+    className={`flex justify-between items-center py-2.5 px-2 -mx-2 cursor-pointer transition-all rounded-lg ${
+      item.isHighlighted ? 'bg-emerald-100/60' : 'hover:bg-slate-50'
+    }`}
+  >
+    {/* Ensure text doesn't break if values are missing */}
+    <span className={`font-semibold text-sm ${item.isHighlighted ? 'text-emerald-800' : 'text-slate-800'}`}>
+      {item.itemName || ""} 
+    </span>
+    <span className={`text-[12px] font-medium ${item.isHighlighted ? 'text-emerald-700' : 'text-slate-500'}`}>
+      {(item.quantity || "")} {(item.unitType || "")}
+    </span>
+  </div>
+))}
     </div>
   </div>
 </div>
@@ -160,35 +188,63 @@ const handleShare = () => {
             <div className="flex flex-row gap-4 items-start">
               
               {/* Left Column: Calendar (200px) */}
-              <div className="w-[200px] shrink-0">
-                <div className="flex justify-between items-center mb-3 px-1">
-                  <span className="font-bold text-xs text-slate-800 uppercase tracking-tight">Dec 2025</span>
-                  <div className="flex gap-2 text-slate-400">
-                    <button className="p-1 hover:bg-slate-100 rounded-lg transition-colors"><ChevronLeft size={14} /></button>
-                    <button className="p-1 hover:bg-slate-100 rounded-lg transition-colors"><ChevronRight size={14} /></button>
-                  </div>
-                </div>
-                <div className="grid grid-cols-7 gap-0.5 text-[10px] text-center font-bold text-slate-400 mb-1">
-                  {['S','M','T','W','T','F','S'].map((day, idx) => (
-                    <div key={`day-h-${idx}`}>{day}</div>
-                  ))}
-                </div>
-                <div className="grid grid-cols-7 gap-0.5 text-[10px] text-center">
-                  {Array.from({length: 31}, (_, i) => (
-                    <div 
-                      key={`day-${i}`} 
-                      onClick={() => {
-                        const d = new Date(tempDate);
-                        d.setDate(i+1);
-                        setTempDate(d);
-                      }}
-                      className={`py-1.5 rounded-lg cursor-pointer transition-all font-bold ${tempDate.getDate() === i+1 ? 'bg-emerald-600 text-white shadow-md' : 'hover:bg-emerald-50 text-slate-700'}`}
-                    >
-                      {i + 1}
-                    </div>
-                  ))}
-                </div>
-              </div>
+              {/* Left Column: Calendar (200px) */}
+<div className="w-[200px] shrink-0">
+  <div className="flex justify-between items-center mb-3 px-1">
+    <span className="font-bold text-xs text-slate-800 uppercase tracking-tight">
+      {monthName} {viewYear}
+    </span>
+    <div className="flex gap-2 text-slate-400">
+      <button 
+        onClick={() => changeMonth(-1)} 
+        className="p-1 hover:bg-slate-100 rounded-lg transition-colors"
+      >
+        <ChevronLeft size={14} />
+      </button>
+      <button 
+        onClick={() => changeMonth(1)} 
+        className="p-1 hover:bg-slate-100 rounded-lg transition-colors"
+      >
+        <ChevronRight size={14} />
+      </button>
+    </div>
+  </div>
+
+  <div className="grid grid-cols-7 gap-0.5 text-[10px] text-center font-bold text-slate-400 mb-1">
+    {['S','M','T','W','T','F','S'].map((day, idx) => (
+      <div key={`day-h-${idx}`}>{day}</div>
+    ))}
+  </div>
+
+  <div className="grid grid-cols-7 gap-0.5 text-[10px] text-center">
+    {/* Empty slots for days of previous month */}
+    {Array.from({ length: firstDayOfMonth }).map((_, i) => (
+      <div key={`empty-${i}`} />
+    ))}
+    
+    {/* Actual Days */}
+    {Array.from({ length: daysInMonth }, (_, i) => {
+      const day = i + 1;
+      const isSelected = tempDate.getDate() === day && 
+                         tempDate.getMonth() === viewMonth && 
+                         tempDate.getFullYear() === viewYear;
+      return (
+        <div 
+          key={`day-${day}`} 
+          onClick={() => {
+            const d = new Date(viewYear, viewMonth, day);
+            setTempDate(d);
+          }}
+          className={`py-1.5 rounded-lg cursor-pointer transition-all font-bold ${
+            isSelected ? 'bg-emerald-600 text-white shadow-md' : 'hover:bg-emerald-50 text-slate-700'
+          }`}
+        >
+          {day}
+        </div>
+      );
+    })}
+  </div>
+</div>
 
               {/* Right Column: Time Selection (150px) */}
               <div className="flex flex-col gap-2 w-[150px] shrink-0">

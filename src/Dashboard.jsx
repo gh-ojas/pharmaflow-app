@@ -8,23 +8,9 @@ import { useData } from './App';
 
 export default function Dashboard({ setPage, onClick, onEdit }) {
   const context = useData();
-  if (!context || !context.orders) {
-    return <div className="p-8 text-center text-slate-400">Loading orders...</div>;
-  }
+  if (!context) return null;
 
   const { customers = [], inventory = [], orders = [], updateOrder, deleteOrder } = context;
-
-  // 2. Ensure orders is treated as an array in useMemo
-  const areaGroups = useMemo(() => {
-    if (!Array.isArray(orders)) return {}; // Safety fallback
-    
-    return orders.reduce((groups, order) => {
-      const area = order.customerArea || 'Other';
-      if (!groups[area]) groups[area] = [];
-      groups[area].push(order);
-      return groups;
-    }, {});
-  }, [orders]);
   
   // States
   const [showDelivered, setShowDelivered] = useState(false);
@@ -133,127 +119,159 @@ export default function Dashboard({ setPage, onClick, onEdit }) {
     </div>
   );
 
-// Safety check at the very beginning of return
-  if (!Array.isArray(orders)) {
-    return <div className="p-10 text-center font-bold text-slate-400">Loading Orders...</div>;
-  }
-
   return (
     <div className="space-y-6 pb-32">
-      {/* 1. Navigation Cards */}
-      <div className="grid grid-cols-2 gap-3 px-0">
+      {/* Scrollbar Styling Injection */}
+
+      <div className="grid grid-cols-2 gap-3">
         <NavCard title="Place Order" desc="Create stock requirement Excel" href="place-order" icon={<ShoppingCart />} color="text-blue-500" fullWidth />
         <NavCard title="Customers" desc={`${customers.length} Registered`} href="customers" icon={<Users />} color="text-indigo-500" />
         <NavCard title="Inventory" desc={`${inventory.length} Products`} href="inventory" icon={<Archive />} color="text-amber-500" />
       </div>
 
-      {/* 2. Global Area Selector */}
-      <div className="relative z-30">
-        <button 
-          onClick={() => setShowAreaMenu(!showAreaMenu)}
-          className="w-full flex items-center justify-between p-3 text-[11px] font-bold uppercase tracking-wider border rounded-xl outline-none shadow-sm transition-all"
-          style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)', color: 'var(--text-main)' }}
-        >
-          <span>{selectedArea === 'All Areas' ? '🌍 Showing All Areas' : `📍 Area: ${selectedArea}`}</span>
-          <ChevronDown className={`h-4 w-4 transition-transform ${showAreaMenu ? 'rotate-180' : ''}`} />
-        </button>
+      <div className="rounded-2xl border shadow-sm overflow-hidden" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+        <div className="p-4 border-b flex justify-between items-center" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--bg-alt)' }}>
+          <div className="flex items-center gap-2 font-bold" style={{ color: 'var(--text-main)' }}>
+            <Clock className="h-5 w-5 text-emerald-500" /> 
+            {showFullHistory ? 'History' : "Today's Orders"}
+          </div>
+          <div className="flex items-center gap-3">
+            <button onClick={() => setShowFullHistory(!showFullHistory)} className="text-xs font-bold flex items-center gap-1" style={{ color: showFullHistory ? 'var(--accent)' : 'var(--text-muted)' }}>
+              <History className="h-3.5 w-3.5" /> {showFullHistory ? 'Live' : 'Past'}
+            </button>
+            <button onClick={() => setShowDelivered(!showDelivered)} className="text-xs font-bold border-l pl-3 flex items-center gap-1" style={{ color: 'var(--text-muted)', borderColor: 'var(--border)' }}>
+              {showDelivered ? 'Hide Done' : `Done (${filteredOrders.delivered.length})`}
+              {showDelivered ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
+          </div>
+        </div>
 
-        {showAreaMenu && (
-          <>
-            <div className="fixed inset-0 z-40" onClick={() => setShowAreaMenu(false)} />
-            <div className="absolute left-0 right-0 mt-2 z-50 rounded-xl border shadow-2xl overflow-hidden bg-white max-h-60 overflow-y-auto">
-              {areaOptions.map((area) => (
-                <div
-                  key={area}
-                  onClick={() => { setSelectedArea(area); setShowAreaMenu(false); }}
-                  className="px-4 py-3 text-[11px] font-bold uppercase hover:bg-slate-50 cursor-pointer border-b last:border-0"
-                  style={{ color: selectedArea === area ? 'var(--accent)' : 'var(--text-main)' }}
-                >
-                  {area === 'All Areas' ? '🌍 All Areas' : `📍 ${area}`}
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { 
+          background: var(--border); 
+          border-radius: 10px; 
+        }
+      `}</style>
+
+        <table className="w-full text-left table-fixed border-collapse">
+          <thead style={{ backgroundColor: 'var(--bg-alt)' }}>
+            <tr className="h-0">
+              <th className="w-[55%] p-0 h-0 border-none"></th>
+              <th className="w-[10%] p-0 h-0 border-none"></th>
+              <th className="w-[10%] p-0 h-0 border-none"></th>
+              <th className="w-[20%] p-0 h-0 border-none"></th>
+            </tr>
+            <tr className="border-b" style={{ borderColor: 'var(--border)' }}>
+              <th colSpan="4" className="p-3">
+                <div className="relative">
+                  <button 
+                    onClick={() => setShowAreaMenu(!showAreaMenu)}
+                    onKeyDown={(e) => {
+                      if (!showAreaMenu) {
+                        if (e.key === 'ArrowDown' || e.key === 'Enter') setShowAreaMenu(true);
+                        return;
+                      }
+                      if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        setFocusedIndex(prev => (prev < areaOptions.length - 1 ? prev + 1 : 0));
+                      } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        setFocusedIndex(prev => (prev > 0 ? prev - 1 : areaOptions.length - 1));
+                      } else if (e.key === 'Enter' && focusedIndex >= 0) {
+                        setSelectedArea(areaOptions[focusedIndex]);
+                        setShowAreaMenu(false);
+                      } else if (e.key === 'Escape') {
+                        setShowAreaMenu(false);
+                      }
+                    }}
+                    className="w-full flex items-center justify-between p-2 text-[11px] font-bold uppercase tracking-wider border rounded-lg outline-none cursor-pointer focus:ring-2 focus:ring-[var(--accent)]"
+                    style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)', color: 'var(--text-main)' }}
+                  >
+                    <span>{selectedArea}</span>
+                    <ChevronDown className={`h-4 w-4 transition-transform ${showAreaMenu ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {showAreaMenu && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setShowAreaMenu(false)} />
+                      <div 
+                        ref={dropdownRef}
+                        className="absolute left-0 right-0 mt-2 z-50 rounded-xl border shadow-2xl overflow-hidden custom-scrollbar animate-in fade-in zoom-in duration-150"
+                        style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)', maxHeight: '200px', overflowY: 'auto' }}
+                      >
+                        {areaOptions.map((area, index) => (
+                          <div
+                            key={area}
+                            ref={focusedIndex === index ? activeItemRef : null}
+                            onClick={() => { setSelectedArea(area); setShowAreaMenu(false); }}
+                            onMouseEnter={() => setFocusedIndex(index)}
+                            className="px-4 py-3 text-[11px] font-bold uppercase tracking-wider cursor-pointer border-b last:border-0 transition-colors"
+                            style={{ 
+                              color: (selectedArea === area || focusedIndex === index) ? 'var(--accent)' : 'var(--text-main)',
+                              backgroundColor: (selectedArea === area || focusedIndex === index) ? 'var(--bg-alt)' : 'transparent',
+                              borderColor: 'var(--border)'
+                            }}
+                          >
+                            {area === 'All Areas' ? '🌍 All Areas' : `📍 ${area}`}
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
-              ))}
-            </div>
-          </>
-        )}
+              </th>
+            </tr>
+            <tr className="text-[10px] uppercase font-bold" style={{ color: 'var(--text-muted)' }}>
+              <th className="p-4 text-left">Client</th>
+              <th className="p-4 text-center">Pick</th>
+              <th className="p-4 text-center">Delivery</th>
+              <th className="p-4 text-center"></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-[#191919]">
+            {showDelivered && filteredOrders.delivered.map(order => (
+              <tr key={order.id} className="opacity-50 grayscale-[0.3]" style={{ backgroundColor: 'var(--bg-main)' }}>
+                <td className="p-4 italic text-sm">
+                  <div className="font-bold truncate" style={{ color: 'var(--text-main)' }}>{order.customerName}</div>
+                  <div className="text-[9px] font-bold" style={{ color: 'var(--text-muted)' }}>{formatDateTime(order.createdAt)}</div>
+                </td>
+                <td className="p-4 text-center"><CheckCircle2 className="h-4 w-4 mx-auto text-slate-400" /></td>
+                <td className="p-4 text-center">
+                  <button onClick={() => handleStatusChange(order, 'delivered', false)}><Truck className="h-4 w-4 mx-auto text-blue-500" /></button>
+                </td>
+                <td className="p-4 text-center">
+                  <button onClick={() => deleteOrder(order.id)} className="p-1.5 text-rose-500"><Trash2 size={16} /></button>
+                </td>
+              </tr>
+            ))}
+            {filteredOrders.pending.map(order => (
+              <tr key={order.id} onClick={() => onClick(order)} className="hover:opacity-80 cursor-pointer">
+                <td className="p-4">
+                  <div className="font-bold text-sm truncate" style={{ color: 'var(--text-main)' }}>{order.customerName}</div>
+                  <div className="text-[10px] font-bold" style={{ color: 'var(--text-muted)' }}>{formatDateTime(order.createdAt)}</div>
+                  {order.deadline && <div className={`text-[10px] font-bold mt-1 ${getDeadlineColor(order.deadline)}`}>DUE: {formatDateTime(order.deadline)}</div>}
+                </td>
+                <td className="p-4 text-center">
+                  <input type="checkbox" className="w-4 h-4 rounded" checked={order.taken} onChange={(e) => handleStatusChange(order, 'taken', e.target.checked)} onClick={e => e.stopPropagation()} />
+                </td>
+                <td className="p-4 text-center">
+                  <input type="checkbox" className="w-4 h-4 rounded" checked={order.delivered} disabled={!order.taken} onChange={(e) => handleStatusChange(order, 'delivered', e.target.checked)} onClick={e => e.stopPropagation()} />
+                </td>
+                <td className="p-4 flex justify-center gap-1">
+                   <button onClick={(e) => { e.stopPropagation(); onEdit(order); }} className="p-2 text-blue-500"><PencilLine size={16} /></button>
+                   <button onClick={(e) => { e.stopPropagation(); if(confirm("Delete?")) deleteOrder(order.id); }} className="p-2 text-rose-500"><Trash2 size={16} /></button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
-      {/* 3. Grouped Orders Tables */}
-      <div className="space-y-8">
-        {Object.entries(areaGroups).map(([areaName, areaOrders]) => {
-          // Filter out delivered if not toggled
-          const pendingInArea = areaOrders.filter(o => !o.delivered);
-          const deliveredInArea = areaOrders.filter(o => o.delivered);
-          
-          if (pendingInArea.length === 0 && (!showDelivered || deliveredInArea.length === 0)) return null;
-
-          return (
-            <div key={areaName} className="rounded-2xl border shadow-sm overflow-hidden bg-white" style={{ borderColor: 'var(--border)' }}>
-              {/* Area Sub-Header */}
-              <div className="p-3 border-b flex justify-between items-center bg-slate-50/50" style={{ borderColor: 'var(--border)' }}>
-                <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                  {areaName} — {pendingInArea.length} Pending
-                </div>
-                {areaName === 'All Areas' && (
-                   <button onClick={() => setShowDelivered(!showDelivered)} className="text-[10px] font-bold text-emerald-600">
-                     {showDelivered ? 'Hide Done' : 'Show Done'}
-                   </button>
-                )}
-              </div>
-
-              <table className="w-full text-left table-fixed border-collapse">
-                <tbody className="divide-y divide-slate-100">
-                  {/* Delivered Section */}
-                  {showDelivered && deliveredInArea.map(order => (
-                    <tr key={order.id} className="opacity-40 grayscale bg-slate-50">
-                      <td className="p-4 w-[55%]">
-                        <div className="font-bold text-xs truncate">{order.customerName}</div>
-                        <div className="text-[9px] font-bold text-slate-400">{formatDateTime(order.createdAt)}</div>
-                      </td>
-                      <td className="p-4 text-center w-[15%]"><CheckCircle2 className="h-4 w-4 mx-auto text-slate-400" /></td>
-                      <td className="p-4 text-center w-[15%]">
-                        <button onClick={() => handleStatusChange(order, 'delivered', false)}><Truck className="h-4 w-4 mx-auto text-blue-500" /></button>
-                      </td>
-                      <td className="p-4 text-center w-[15%]">
-                        <button onClick={() => deleteOrder(order.id)} className="p-1.5 text-rose-500"><Trash2 size={16} /></button>
-                      </td>
-                    </tr>
-                  ))}
-
-                  {/* Pending Section */}
-                  {pendingInArea.map(order => (
-                    <tr key={order.id} onClick={() => onClick(order)} className="hover:bg-slate-50/50 cursor-pointer transition-colors">
-                      <td className="p-4 w-[55%]">
-                        <div className="font-bold text-sm truncate text-slate-800">{order.customerName}</div>
-                        <div className="text-[10px] font-bold text-slate-400">{formatDateTime(order.createdAt)}</div>
-                        {order.deadline && <div className={`text-[9px] font-black mt-1 ${getDeadlineColor(order.deadline)} uppercase`}>Due: {formatDateTime(order.deadline)}</div>}
-                      </td>
-                      <td className="p-4 text-center w-[15%]">
-                        <input type="checkbox" className="w-4 h-4 rounded accent-emerald-500" checked={order.taken} onChange={(e) => handleStatusChange(order, 'taken', e.target.checked)} onClick={e => e.stopPropagation()} />
-                      </td>
-                      <td className="p-4 text-center w-[15%]">
-                        <input type="checkbox" className="w-4 h-4 rounded accent-blue-500" checked={order.delivered} disabled={!order.taken} onChange={(e) => handleStatusChange(order, 'delivered', e.target.checked)} onClick={e => e.stopPropagation()} />
-                      </td>
-                      <td className="p-4 text-center w-[15%]">
-                        <div className="flex justify-center gap-1">
-                          <button onClick={(e) => { e.stopPropagation(); onEdit(order); }} className="p-1 text-blue-500"><PencilLine size={16} /></button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Floating Action Button */}
-      <button 
-        onClick={() => setPage('take-order')} 
-        style={{ bottom: 'calc(2.0rem + var(--safe-area-bottom))' }} 
-        className="fixed right-8 h-16 w-16 rounded-full shadow-2xl flex items-center justify-center bg-emerald-600 hover:scale-110 active:scale-95 z-40"
-      >
-        <PlusCircle className="h-7 w-7 text-white" />
+      <button onClick={() => setPage('take-order')} style={{ backgroundColor: 'var(--bg-main)', borderColor: 'var(--border)', bottom: 'calc(2.0rem + var(--safe-area-bottom))' }} className="fixed right-8 h-16 w-16 rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 border z-40">
+        <PencilLine className="h-7 w-7 text-emerald-500" />
       </button>
     </div>
-  );}
+  );
+}

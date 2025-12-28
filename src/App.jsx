@@ -16,6 +16,8 @@ import { ref, onValue, set } from "firebase/database";
 
 const DataContext = createContext();
 
+
+
 export const DataProvider = ({ children }) => {
   // Initialize state from localStorage cache or empty array
   const [orders, setOrders] = useState(() => {
@@ -29,16 +31,23 @@ export const DataProvider = ({ children }) => {
   const [requirementHistory, setRequirementHistory] = useState(() => JSON.parse(localStorage.getItem('cache_requirementHistory')) || []);
 
   // Sync all data from Firebase
-  useEffect(() => {
-    const sync = (path, setter, cacheKey) => {
-      onValue(ref(db, path), (snapshot) => {
-        const data = snapshot.val();
-        // Ensure data is always an array
-        const arrayData = Array.isArray(data) ? data : [];
-        setter(arrayData);
-        localStorage.setItem(cacheKey, JSON.stringify(arrayData));
-      });
-    };
+useEffect(() => {
+  const sync = (path, setter, cacheKey) => {
+    onValue(ref(db, path), (snapshot) => {
+      const data = snapshot.val();
+      
+      // Convert Object to Array if necessary
+      let arrayData = [];
+      if (data) {
+        arrayData = Array.isArray(data) 
+          ? data 
+          : Object.keys(data).map(key => ({ id: key, ...data[key] }));
+      }
+
+      setter(arrayData);
+      localStorage.setItem(cacheKey, JSON.stringify(arrayData));
+    });
+  };
 
     sync('orders', setOrders, 'cache_orders');
     sync('inventory', setInventory, 'cache_inventory');
@@ -53,6 +62,27 @@ export const DataProvider = ({ children }) => {
     set(ref(db, 'inventory'), updated);
   };
 
+const toggleItemHighlight = (orderId, itemIdx) => {
+  // 1. Calculate the updated order immediately
+  const updatedOrder = orders.find(o => o.id === orderId);
+  if (!updatedOrder) return;
+
+  const newItems = [...updatedOrder.items];
+  newItems[itemIdx] = { 
+    ...newItems[itemIdx], 
+    isHighlighted: !newItems[itemIdx].isHighlighted 
+  };
+  
+  const modifiedOrder = { ...updatedOrder, items: newItems };
+
+  // 2. Update local state for instant UI feedback
+  const newList = orders.map(o => o.id === orderId ? modifiedOrder : o);
+  setOrders(newList);
+
+  // 3. Sync the same 'newList' to Firebase in the background
+  set(ref(db, 'orders'), newList);
+};
+  
   const addMultipleCustomers = (newCustomers) => {
     const updated = [...newCustomers, ...customers];
     set(ref(db, 'customers'), updated);
@@ -101,7 +131,7 @@ export const DataProvider = ({ children }) => {
       addOrder, updateOrder, deleteOrder,
       addInventoryItem, updateInventoryItem, deleteInventoryItem, addMultipleInventoryItems,
       addCustomer, deleteCustomer, addMultipleCustomers,
-      updateRequirementHistory
+      updateRequirementHistory,toggleItemHighlight
     }}>
       {children}
     </DataContext.Provider>
@@ -149,6 +179,7 @@ const Layout = ({ children, page, setPage, actions, darkMode, setDarkMode }) => 
 );
 
 function AppContent() {
+  const { orders } = useData();
   const [page, setPage] = useState('home');
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [editingOrder, setEditingOrder] = useState(null);
@@ -207,7 +238,7 @@ function AppContent() {
       {page === 'employees' && <EmployeesPage setHeaderActions={setHeaderActions} />}
       {page === 'place-order' && <PlaceOrderPage setHeaderActions={setHeaderActions} setPage={setPage} />}
       {page === 'take-order' && <TakeOrderPage setHeaderActions={setHeaderActions} setPage={setPage} editingOrder={editingOrder} onReview={(order) => { setSelectedOrder(order); setPage('home'); }} />}
-      {selectedOrder && <Dialogs order={selectedOrder} onClose={() => setSelectedOrder(null)} onEdit={handleEditOrder} />}
+      {selectedOrder && (<Dialogs order={orders.find(o => o.id === selectedOrder.id) || selectedOrder} onClose={() => setSelectedOrder(null)} onEdit={handleEditOrder} />)}
     </Layout>
   );
 }
